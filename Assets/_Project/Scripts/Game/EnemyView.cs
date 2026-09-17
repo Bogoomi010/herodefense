@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TowerDefense.Core;
 using UnityEngine;
 
@@ -13,10 +14,13 @@ namespace TowerDefense.Game
 
         private PathFollower _path;
         private float _yOffset;
-        private Renderer _renderer;
+        private readonly List<(Renderer r, int slot)> _tint = new List<(Renderer, int)>();
         private MaterialPropertyBlock _mpb;
         private Color _baseColor;
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+
+        /// <summary>몹 기본 높이 (m). 단계·보스 배율(MobStats.Scale)이 곱해진다.</summary>
+        public const float BaseHeight = 0.8f;
 
         /// <summary>경로 끝(도착 지점)에 닿았는가</summary>
         public bool ReachedEnd => State.Dist * GameConfig.PxToWorld >= _path.Total;
@@ -24,27 +28,59 @@ namespace TowerDefense.Game
         /// <summary>경로 진행률 0~1</summary>
         public float Progress => Mathf.Clamp01(State.Dist * GameConfig.PxToWorld / _path.Total);
 
-        public static EnemyView Create(MobState state, PathFollower path, Transform parent)
+        /// <summary>
+        /// 몹 뷰 생성. prefab이 있으면 그 모델(발밑 원점, +Z 정면)을 높이에 맞춰 스케일하고
+        /// 이름에 "Wool"이 들어간 머티리얼 슬롯만 계열 색으로 틴트한다. 없으면 캡슐 프리미티브.
+        /// </summary>
+        public static EnemyView Create(MobState state, PathFollower path, Transform parent, GameObject prefab = null)
         {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            go.name = state.Name;
-            go.transform.SetParent(parent, false);
-            // 캡슐 기본 높이 2 → 몹 기본 높이 0.8 m, 단계/보스 배율 적용
-            float s = 0.4f * state.Scale;
-            go.transform.localScale = new Vector3(s, s, s);
-            var col = go.GetComponent<Collider>();
-            if (col != null) Object.Destroy(col); // 물리 불필요 — 타워는 거리로 판정
+            GameObject go;
+            float yOffset;
+            var tint = new List<(Renderer, int)>();
+            float height = BaseHeight * state.Scale;
+
+            if (prefab != null)
+            {
+                go = Object.Instantiate(prefab, parent);
+                go.name = state.Name;
+                var renderers = go.GetComponentsInChildren<Renderer>();
+                var b = new Bounds(go.transform.position, Vector3.zero);
+                bool first = true;
+                foreach (var r in renderers)
+                {
+                    if (first) { b = r.bounds; first = false; } else b.Encapsulate(r.bounds);
+                    var mats = r.sharedMaterials;
+                    for (int i = 0; i < mats.Length; i++)
+                        if (mats[i] != null && mats[i].name.Contains("Wool")) tint.Add((r, i));
+                }
+                float modelH = Mathf.Max(0.01f, b.size.y);
+                go.transform.localScale = Vector3.one * (height / modelH);
+                yOffset = 0f;
+            }
+            else
+            {
+                go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                go.name = state.Name;
+                go.transform.SetParent(parent, false);
+                float s = height * 0.5f; // 캡슐 기본 높이 2
+                go.transform.localScale = new Vector3(s, s, s);
+                var col = go.GetComponent<Collider>();
+                if (col != null) Object.Destroy(col); // 물리 불필요 — 타워는 거리로 판정
+                tint.Add((go.GetComponent<Renderer>(), 0));
+                yOffset = s; // 캡슐 중심을 발밑에서 반높이만큼 올린다
+            }
+
             var view = go.AddComponent<EnemyView>();
-            view.Init(state, path, s); // 캡슐 중심을 발밑에서 s(=반높이)만큼 올린다
+            view.Init(state, path, yOffset, tint);
             return view;
         }
 
-        private void Init(MobState state, PathFollower path, float yOffset)
+        private void Init(MobState state, PathFollower path, float yOffset, List<(Renderer, int)> tint)
         {
             State = state;
             _path = path;
             _yOffset = yOffset;
-            _renderer = GetComponent<Renderer>();
+            _tint.AddRange(tint);
             _mpb = new MaterialPropertyBlock();
             _baseColor = ToColor(state.Color);
             ApplyColor(1f);
@@ -72,7 +108,7 @@ namespace TowerDefense.Game
             var c = Color.Lerp(_baseColor * 0.35f, _baseColor, 0.4f + 0.6f * hpRatio);
             c.a = 1f;
             _mpb.SetColor(BaseColorId, c);
-            _renderer.SetPropertyBlock(_mpb);
+            foreach (var (r, slot) in _tint) r.SetPropertyBlock(_mpb, slot);
         }
 
         private static Color ToColor(uint rgb) =>

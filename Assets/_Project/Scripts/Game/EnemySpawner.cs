@@ -13,6 +13,8 @@ namespace TowerDefense.Game
     {
         [Header("참조")]
         public TileMap map;
+        [Tooltip("몹 모델 프리팹 (발밑 원점, +Z 정면). 비우면 캡슐 프리미티브")]
+        public GameObject enemyPrefab;
 
         [Header("설정")]
         public Difficulty difficulty = Difficulty.Normal;
@@ -136,7 +138,7 @@ namespace TowerDefense.Game
 
         private EnemyView AddEnemy(MobState state)
         {
-            var view = EnemyView.Create(state, _path, _enemyRoot);
+            var view = EnemyView.Create(state, _path, _enemyRoot, enemyPrefab);
             _enemies.Add(view);
             return view;
         }
