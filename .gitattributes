@@ -1,0 +1,31 @@
+# Normalize line endings
+* text=auto eol=lf
+*.cs text eol=lf diff=csharp
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Unity YAML assets: use UnityYAMLMerge for merging
+*.unity merge=unityyamlmerge eol=lf
+*.prefab merge=unityyamlmerge eol=lf
+*.asset merge=unityyamlmerge eol=lf
+*.meta merge=unityyamlmerge eol=lf
+*.mat merge=unityyamlmerge eol=lf
+*.anim merge=unityyamlmerge eol=lf
+*.controller merge=unityyamlmerge eol=lf
+*.physicMaterial merge=unityyamlmerge eol=lf
+*.inputactions text eol=lf
+
+# Binary assets (add Git LFS tracking later if the project gets asset-heavy)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.psd binary
+*.tga binary
+*.fbx binary
+*.blend binary
+*.wav binary
+*.mp3 binary
+*.ogg binary
+*.ttf binary
+*.otf binary
+*.dll binary
