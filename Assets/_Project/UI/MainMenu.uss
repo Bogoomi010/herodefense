@@ -1,0 +1,137 @@
+.root {
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    background-image: url("/Assets/_Project/Art/Textures/UI/MenuBackground.png");
+    -unity-background-scale-mode: scale-and-crop;
+}
+
+.left-panel {
+    width: 420px;
+    max-width: 40%;
+    height: 100%;
+    padding: 48px 32px;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    background-color: rgba(0, 0, 0, 0.45);
+    color: rgb(242, 235, 221);
+}
+
+.title {
+    font-size: 56px;
+    -unity-font-style: bold;
+    color: rgb(242, 235, 221);
+    margin-bottom: 40px;
+    white-space: normal;
+}
+
+.button-list {
+    flex-direction: column;
+    width: 100%;
+}
+
+.menu-button {
+    background-color: rgba(255, 255, 255, 0.08);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.25);
+    border-radius: 8px;
+    color: rgb(242, 235, 221);
+    font-size: 22px;
+    padding: 14px 20px;
+    margin: 0 0 16px 0;
+    transition-property: background-color, border-color;
+    transition-duration: 0.12s, 0.12s;
+}
+
+.menu-button:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+    border-color: rgb(232, 184, 109);
+}
+
+.panel-button {
+    margin: 0 0 12px 0;
+}
+
+.back-button {
+    margin-top: 8px;
+}
+
+.panel {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    translate: -50% -50%;
+    width: 520px;
+    padding: 32px;
+    flex-direction: column;
+    background-color: rgba(20, 15, 10, 0.85);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    color: rgb(242, 235, 221);
+}
+
+.hidden {
+    display: none;
+}
+
+.panel-title {
+    font-size: 28px;
+    -unity-font-style: bold;
+    color: rgb(242, 235, 221);
+    margin-bottom: 20px;
+}
+
+.diff-option {
+    flex-direction: column;
+    width: 100%;
+}
+
+.diff-desc {
+    font-size: 14px;
+    color: rgba(242, 235, 221, 0.7);
+    margin: -4px 0 12px 4px;
+}
+
+.settings-group {
+    flex-direction: column;
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+.group-title {
+    font-size: 18px;
+    -unity-font-style: bold;
+    color: rgb(232, 184, 109);
+    margin-bottom: 8px;
+}
+
+.settings-slider {
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+.settings-field {
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+.panel .unity-base-field__label {
+    color: rgb(242, 235, 221);
+    min-width: 120px;
+}
+
+.credits-text {
+    font-size: 16px;
+    color: rgb(242, 235, 221);
+    white-space: normal;
+    margin-bottom: 20px;
+}
+
+.quit-buttons {
+    flex-direction: column;
+    width: 100%;
+}

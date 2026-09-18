@@ -1,0 +1,17 @@
+{
+    "name": "TowerDefense.UI",
+    "rootNamespace": "TowerDefense.UI",
+    "references": [
+        "TowerDefense.Core",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

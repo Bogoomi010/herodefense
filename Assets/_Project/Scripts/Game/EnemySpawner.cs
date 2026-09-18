@@ -50,6 +50,7 @@ namespace TowerDefense.Game
         {
             if (map == null) map = FindFirstObjectByType<TileMap>();
             if (map.Grid == null) map.Generate();
+            if (PlayerPrefs.HasKey("Difficulty")) difficulty = (Difficulty)PlayerPrefs.GetInt("Difficulty"); // 시작 메뉴 선택값
             MobDefs.Difficulty = difficulty;
             _path = new PathFollower(map.Waypoints);
             _enemyRoot = new GameObject("Enemies").transform;

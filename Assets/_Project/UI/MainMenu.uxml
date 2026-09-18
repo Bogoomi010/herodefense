@@ -1,0 +1,77 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <Style src="MainMenu.uss" />
+
+    <ui:VisualElement name="root" class="root">
+
+        <ui:VisualElement name="left-panel" class="left-panel">
+            <ui:Label name="title" text="TOWER DEFENSE" class="title" />
+
+            <ui:VisualElement name="button-list" class="button-list">
+                <ui:Button name="btn-start" text="시작" class="menu-button" />
+                <ui:Button name="btn-settings" text="설정" class="menu-button" />
+                <ui:Button name="btn-credits" text="만든이 소개" class="menu-button" />
+                <ui:Button name="btn-quit" text="종료" class="menu-button" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="panel-difficulty" class="panel hidden">
+            <ui:Label text="난이도 선택" class="panel-title" />
+
+            <ui:VisualElement class="diff-option">
+                <ui:Button name="diff-easy" text="쉬움" class="menu-button panel-button" />
+                <ui:Label text="적 체력 낮음" class="diff-desc" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="diff-option">
+                <ui:Button name="diff-normal" text="보통" class="menu-button panel-button" />
+                <ui:Label text="기본" class="diff-desc" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="diff-option">
+                <ui:Button name="diff-hard" text="어려움" class="menu-button panel-button" />
+                <ui:Label text="적 체력·속도 증가" class="diff-desc" />
+            </ui:VisualElement>
+
+            <ui:Button name="diff-back" text="뒤로" class="menu-button panel-button back-button" />
+        </ui:VisualElement>
+
+        <ui:VisualElement name="panel-settings" class="panel hidden">
+            <ui:Label text="설정" class="panel-title" />
+
+            <ui:VisualElement class="settings-group">
+                <ui:Label text="소리" class="group-title" />
+                <ui:Slider name="sl-master" label="전체 음량" low-value="0" high-value="1" value="1" class="settings-slider" />
+                <ui:Slider name="sl-bgm" label="배경음" low-value="0" high-value="1" value="1" class="settings-slider" />
+                <ui:Slider name="sl-sfx" label="효과음" low-value="0" high-value="1" value="1" class="settings-slider" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="settings-group">
+                <ui:Label text="화면" class="group-title" />
+                <ui:DropdownField name="dd-resolution" label="해상도" class="settings-field" />
+                <ui:Toggle name="tg-fullscreen" label="전체화면" value="true" class="settings-field" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="settings-group">
+                <ui:Label text="조작" class="group-title" />
+                <ui:Slider name="sl-sens" label="마우스 감도" low-value="0.02" high-value="0.5" value="0.1" class="settings-slider" />
+            </ui:VisualElement>
+
+            <ui:Button name="settings-back" text="뒤로" class="menu-button panel-button back-button" />
+        </ui:VisualElement>
+
+        <ui:VisualElement name="panel-credits" class="panel hidden">
+            <ui:Label text="만든이" class="panel-title" />
+            <ui:Label name="credits-text" text="기획·개발: Bogumi&#10;도구: Unity 6, Blender&#10;연락처: -" class="credits-text" />
+            <ui:Button name="credits-back" text="뒤로" class="menu-button panel-button back-button" />
+        </ui:VisualElement>
+
+        <ui:VisualElement name="panel-quit" class="panel hidden">
+            <ui:Label text="정말 종료할까요?" class="panel-title" />
+            <ui:VisualElement class="quit-buttons">
+                <ui:Button name="quit-yes" text="예" class="menu-button panel-button" />
+                <ui:Button name="quit-no" text="아니오" class="menu-button panel-button" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+    </ui:VisualElement>
+</ui:UXML>
