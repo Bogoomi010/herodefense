@@ -28,14 +28,16 @@ namespace TowerDefense.Game
 
         // ---------- 세션 상태 ----------
         public int Death { get; private set; } = GameConfig.DeathStart;
-        public int Gold { get; private set; } = GameConfig.StartGold;
+        /// <summary>골드 경제 — 모든 골드 증감은 여기를 지난다 (docs/GOLD_SYSTEM.md)</summary>
+        public Economy Economy { get; } = new Economy(new Mods());
+        public int Gold => Economy.Gold;
         public int Kills { get; private set; }
         public int Leaked { get; private set; }
         public bool Over { get; private set; }
         public string LastMessage { get; private set; } = "";
         public float GameTimeMs { get; private set; }
         public WaveSystem Wave { get; private set; }
-        public Mods Mods { get; } = new Mods();
+        public Mods Mods => Economy.Mods;
         public IReadOnlyList<EnemyView> Enemies => _enemies;
 
         private readonly List<EnemyView> _enemies = new List<EnemyView>();
@@ -113,7 +115,7 @@ namespace TowerDefense.Game
         {
             var m = e.State;
             Kills++;
-            Gold += m.Gold;
+            Economy.RewardKill(m, GameTimeMs); // 스킬 killGoldMul은 유닛 전투 이식(M4) 때 전달
             Remove(e);
 
             // 🗑 분열: 쓰레기 상위 몹은 죽으면 봉투 2개로 갈라진다
@@ -172,13 +174,14 @@ namespace TowerDefense.Game
 
         public void RoundStart(int round, bool boss)
         {
+            Economy.OnRoundStart(); // 변이 라운드 배율 초기화 (변이 자체는 도파민 시스템 이식 때)
             Message(boss ? $"라운드 {round} — 보스 {MobDefs.BossDefFor(round).Name} ({MobDefs.BossDefFor(round).Trait})" : $"라운드 {round} — {MobDefs.MobStatsFor(round).Name}");
         }
 
         public void RoundClear(int round)
         {
-            Gold += MobDefs.RoundClearBonus(round);
-            Message($"라운드 {round} 클리어 +{MobDefs.RoundClearBonus(round)}G");
+            int bonus = Economy.RewardRoundClear(round);
+            Message($"라운드 {round} 클리어 +{bonus}G");
         }
 
         public void Message(string text)
@@ -246,7 +249,9 @@ namespace TowerDefense.Game
             GUILayout.BeginArea(new Rect(20, 16, 500, 140));
             string state = Wave.State == WaveSystem.WaveState.Break ? "휴식" : "진행";
             GUILayout.Label($"라운드 {Wave.Round}/{GameConfig.RoundMax}  [{state}]  남은 시간 {Wave.TimeLeftSec}s  ×{timeScale:0.#}", style);
-            GUILayout.Label($"몹 {_enemies.Count}  처치 {Kills}  진입 {Leaked}  데스 {Death}  골드 {Gold}", style);
+            int streak = Economy.StreakAt(GameTimeMs);
+            GUILayout.Label($"몹 {_enemies.Count}  처치 {Kills}  진입 {Leaked}  데스 {Death}  골드 {Gold}" +
+                            (streak >= Events.StreakMin ? $"  🔥{streak}" : ""), style);
             if (GameTimeMs < _messageUntil) GUILayout.Label(LastMessage, style);
             if (Over) GUILayout.Label(_result, style);
             GUILayout.EndArea();

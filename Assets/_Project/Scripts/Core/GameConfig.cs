@@ -16,6 +16,7 @@ namespace TowerDefense.Core
         public const int MobCap = 50; // 필드 몹 수용 한계
         public const int DeathStart = 10; // 데스 카운트
         public const int GachaCost = 20;
+        public const int GachaCostMin = 5; // 할인 누적 시 바닥
         public const int StartGold = 100;
         public const float PhaseSec = 180f; // 낮/밤 지속 시간(초)
         public const float PhaseBuff = 1.25f;

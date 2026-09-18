@@ -1,0 +1,20 @@
+{
+    "name": "TowerDefense.Game.Editor",
+    "rootNamespace": "TowerDefense.Game.EditorTools",
+    "references": [
+        "TowerDefense.Core",
+        "TowerDefense.Map",
+        "TowerDefense.Game"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
