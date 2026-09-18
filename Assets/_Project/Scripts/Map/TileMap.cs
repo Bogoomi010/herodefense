@@ -66,6 +66,7 @@ namespace TowerDefense.Map
             mr.sharedMaterials = new[] { groundMaterial, pathMaterial, spawnMaterial, goalMaterial };
 
             RebuildWaypoints();
+            if (TryGetComponent<TreeScatter>(out var trees)) trees.Scatter();
         }
 
         /// <summary>시드를 바꾸고 다시 생성.</summary>
@@ -81,6 +82,7 @@ namespace TowerDefense.Map
         {
             Grid = PathGenerator.Generate(width, height, seed, windiness);
             RebuildWaypoints();
+            if (TryGetComponent<TreeScatter>(out var trees)) trees.Scatter(); // DontSave라 도메인 리로드 후 사라진다
         }
 
         private void RebuildWaypoints()
