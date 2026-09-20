@@ -10,7 +10,7 @@ namespace TowerDefense.Hero
 
     /// <summary>
     /// 절벽 위(perch)에 서서 전장을 내려다보는 영웅.
-    /// 조작: Ctrl+호버(Perched) = 강림 지점 표시, Ctrl+좌클릭(Perched) = 강림, WASD(Active) = 이동, 좌클릭(Active) = 가까운 적 공격, R = 절벽 귀환.
+    /// 조작: Ctrl+호버(Perched) = 강림 지점 표시, Ctrl+좌클릭(Perched) = 강림, WASD(Active) = 이동, 좌클릭(Active) = 가까운 적 공격, T = 절벽 귀환 (강림 후 returnCooldownSec가 지나야 가능).
     /// </summary>
     public sealed class Hero : MonoBehaviour
     {
@@ -36,6 +36,12 @@ namespace TowerDefense.Hero
         [Header("강림")]
         public float descendDuration = 0.7f;
         public float descendArcHeight = 4f;
+        [Header("귀환")]
+        [Tooltip("강림 완료 후 이 시간이 지나야 T로 귀환할 수 있다")]
+        public float returnCooldownSec = 10f;
+        /// <summary>T 귀환까지 남은 시간(초). Active가 아니면 0.</summary>
+        public float ReturnCooldownLeft => State == HeroState.Active ? Mathf.Max(0f, _activeSince + returnCooldownSec - Time.time) : 0f;
+        private float _activeSince;
 
         [Header("강림 마커")]
         public float markerRadius = 0.9f;
@@ -86,7 +92,7 @@ namespace TowerDefense.Hero
 
         private void Update()
         {
-            if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame) Return();
+            if (Keyboard.current != null && Keyboard.current.tKey.wasPressedThisFrame && State == HeroState.Active && ReturnCooldownLeft <= 0f) Return();
 
             switch (State)
             {
@@ -131,6 +137,7 @@ namespace TowerDefense.Hero
             if (t >= 1f)
             {
                 SnapToGround(_descendTo);
+                _activeSince = Time.time;
                 SetState(HeroState.Active);
             }
         }
