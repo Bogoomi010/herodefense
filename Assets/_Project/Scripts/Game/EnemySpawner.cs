@@ -18,14 +18,11 @@ namespace TowerDefense.Game
         public GameObject enemyPrefab;
 
         [Header("설정")]
-        public Difficulty difficulty = Difficulty.Normal;
         [Tooltip("게임 배속")]
         [Range(0.25f, 8f)] public float timeScale = 1f;
-        [Tooltip("시작 라운드 - 1 (예: 9 → 10라운드 보스부터 시작)")]
+        [Tooltip("테스트용: 시작 웨이브 - 1 (예: 13 → 14웨이브부터)")]
         [Min(0)] public int skipRounds = 0;
         public bool showHud = true;
-        [Tooltip("스테이지를 마친 뒤 돌아갈 메뉴 씬")]
-        public string menuSceneName = "MainMenu";
 
         // ---------- 세션 상태 ----------
         public int Death { get; private set; } = GameConfig.DeathStart;
@@ -51,7 +48,14 @@ namespace TowerDefense.Game
         public bool HeroInField { get; set; }
         public TowerPlacer Placer { get; private set; }
 
+        /// <summary>이 씬의 스테이지 번호와 데이터 (docs/STAGE.md)</summary>
+        public int Stage { get; private set; }
+        public StageDef Def { get; private set; }
+        public bool Won { get; private set; }
+        public int Stars { get; private set; }
+
         private string _settlement = "";
+        private bool _recordable;
 
         private readonly List<EnemyView> _enemies = new List<EnemyView>();
         private PathFollower _path;
@@ -61,7 +65,14 @@ namespace TowerDefense.Game
 
         private void Awake()
         {
-            Profile = ProfileStore.Load();
+            Profile = ProfileStore.LoadCurrent();
+            // 목록에 없는 씬(테스트용)은 1스테이지 수치로 돌리되, 기록은 저장하지 않는다
+            int n = StageFlow.StageOf(gameObject.scene.name);
+            _recordable = n > 0 && ProfileStore.Exists(ProfileStore.Current);
+            Stage = n > 0 ? n : 1;
+            Def = (StageList.Instance != null ? StageList.Instance.Get(Stage) : null) ?? new StageDef();
+            MobDefs.Difficulty = Profile.difficulty; // 저장 슬롯을 만들 때 고정
+            MobDefs.StageHpMul = Def.hpMul;
             Bonuses = SkillTreeDef.LoadOrEmpty().Bonuses(Profile);
             Economy = new Economy(new Mods(), GameConfig.StartGold + Bonuses.StartGold);
         }
@@ -70,12 +81,11 @@ namespace TowerDefense.Game
         {
             if (map == null) map = FindFirstObjectByType<TileMap>();
             if (map.Grid == null) map.Generate();
-            if (PlayerPrefs.HasKey("Difficulty")) difficulty = (Difficulty)PlayerPrefs.GetInt("Difficulty"); // 시작 메뉴 선택값
-            MobDefs.Difficulty = difficulty;
             _path = new PathFollower(map.Waypoints);
             _enemyRoot = new GameObject("Enemies").transform;
             _enemyRoot.SetParent(transform, false);
-            Wave = new WaveSystem(this);
+            int perWave = Mathf.RoundToInt(GameConfig.MobsPerRound * MobDefs.DifficultyCountMul(Profile.difficulty));
+            Wave = new WaveSystem(this, WaveSystem.StageWaves, perWave, StageRules.IsBoss(Stage));
             for (int i = 0; i < skipRounds; i++) Wave.SkipRound();
             Placer = GetComponent<TowerPlacer>();
             if (Placer == null) Placer = gameObject.AddComponent<TowerPlacer>();
@@ -113,6 +123,12 @@ namespace TowerDefense.Game
                 Leaked++;
                 Death--;
                 Remove(e);
+                if (m.IsBoss)
+                {
+                    // ponytail: 보스 스테이지 규칙 확정 전 임시 — 보스를 놓치면 실패
+                    GameOver(false, "보스가 도착했습니다");
+                    return;
+                }
                 Message($"몹이 도시에 진입! 데스 -1 (남은 데스 {Death})");
                 if (Death <= 0)
                 {
@@ -214,16 +230,17 @@ namespace TowerDefense.Game
         }
 
         public void Defeat(string reason) => GameOver(false, reason);
-        public void Victory() => GameOver(true, "40라운드 방어 성공");
+        public void Victory() => GameOver(true, $"{Wave.WaveCount}웨이브 방어 성공");
 
         private void GameOver(bool win, string reason)
         {
             if (Over) return;
             Over = true;
             Wave.Stop();
-            _result = win ? $"승리 — {reason}" : $"패배 — {reason}";
+            Won = win;
+            _result = win ? $"클리어 — {reason}" : $"실패 — {reason}";
             Debug.Log($"[EnemySpawner] {_result}");
-            _settlement = Settle();
+            _settlement = Settle(win);
             if (Placer != null) Placer.SetActive(false);
         }
 
@@ -262,18 +279,48 @@ namespace TowerDefense.Game
             return gained;
         }
 
-        /// <summary>스테이지 정산: 경험치를 프로필에 더하고 저장한다. 결과 문구 반환.</summary>
-        private string Settle()
+        /// <summary>
+        /// 스테이지 정산 (docs/STAGE.md): 별 계산, 클리어 기록·해금, 보상(처음 = 경험치 + 스킬 포인트, 다시 = 경험치만),
+        /// 나무 경험치와 함께 프로필에 더하고 저장한다. 결과 문구 반환.
+        /// </summary>
+        private string Settle(bool win)
         {
+            float elapsed = GameTimeMs / 1000f;
+            Stars = StageRules.Stars(win, Leaked, elapsed, Def.starTimeSec);
+            var lines = new System.Text.StringBuilder();
+            lines.AppendLine($"{StarText(Stars)}   시간 {Clock(elapsed)} / 기준 {Clock(Def.starTimeSec)}   통과한 크립 {Leaked}");
+
+            if (!_recordable)
+            {
+                lines.Append("테스트 실행 — 저장 슬롯이 없거나 목록에 없는 씬이라 기록하지 않음");
+                return lines.ToString();
+            }
+
+            int exp = StageExp, points = 0;
+            if (win)
+            {
+                bool first = Profile.RecordClear(Stage, Stars);
+                var (rewardExp, rewardPoints) = StageRules.ClearReward(first, Def.clearExp, Def.clearSkillPoints);
+                exp += Mathf.RoundToInt(rewardExp * Bonuses.ExpMul);
+                points = rewardPoints;
+                lines.AppendLine(first ? "처음 클리어 보상" : "다시 클리어 보상 (스킬 포인트 없음)");
+            }
+
             int before = Profile.level;
-            int levels = Profile.AddExp(StageExp);
+            int levels = Profile.AddExp(exp);
+            Profile.skillPoints += points;
+            points += levels * PlayerProfile.PointsPerLevel;
             Profile.tutorialDone = true; // 임시: 첫 스테이지를 끝내면 튜토리얼 완료
-            try { ProfileStore.Save(Profile); }
-            catch (System.Exception e) { Debug.LogError($"[EnemySpawner] 프로필 저장 실패: {e}"); return "프로필 저장 실패 — 로그를 확인하세요"; }
-            return levels > 0
-                ? $"경험치 +{StageExp}  레벨 {before} → {Profile.level}  스킬 포인트 +{levels * PlayerProfile.PointsPerLevel}"
-                : $"경험치 +{StageExp}  (다음 레벨까지 {PlayerProfile.ExpToNext(Profile.level) - Profile.exp})";
+            try { ProfileStore.SaveCurrent(Profile); }
+            catch (System.Exception e) { Debug.LogError($"[EnemySpawner] 저장 실패: {e}"); return "저장 실패 — 로그를 확인하세요"; }
+
+            lines.Append($"경험치 +{exp}" + (points > 0 ? $"   스킬 포인트 +{points}" : ""));
+            lines.Append(levels > 0 ? $"   레벨 {before} → {Profile.level}" : $"   (다음 레벨까지 {PlayerProfile.ExpToNext(Profile.level) - Profile.exp})");
+            return lines.ToString();
         }
+
+        private static string StarText(int n) => new string('★', n) + new string('☆', 3 - n);
+        private static string Clock(float sec) => $"{(int)sec / 60}:{(int)sec % 60:00}";
 
         // ---------- HUD ----------
 
@@ -292,11 +339,12 @@ namespace TowerDefense.Game
             GUI.Box(HudRect, GUIContent.none);
             GUILayout.BeginArea(new Rect(HudRect.x + 10, HudRect.y + 6, HudRect.width - 20, HudRect.height - 10));
             string state = Wave.State == WaveSystem.WaveState.Break ? "휴식" : "진행";
-            GUILayout.Label($"라운드 {Wave.Round}/{GameConfig.RoundMax}  [{state}]  남은 시간 {Wave.TimeLeftSec}s  ×{timeScale:0.#}", style);
+            string wave = Wave.IsLastWave ? "(마지막)" : $"[{state}] {Wave.TimeLeftSec}s";
+            GUILayout.Label($"스테이지 {Stage}{(Wave.BossAtEnd ? " 보스" : "")}  웨이브 {Wave.Round}/{Wave.WaveCount}  {wave}", style);
             int streak = Economy.StreakAt(GameTimeMs);
             GUILayout.Label($"몹 {_enemies.Count}  처치 {Kills}  진입 {Leaked}  데스 {Death}  골드 {Gold}" +
                             (streak >= Events.StreakMin ? $"  🔥{streak}" : ""), style);
-            GUILayout.Label($"Lv {Profile.level}  스테이지 경험치 +{StageExp}", style);
+            GUILayout.Label($"Lv {Profile.level}  경과 {Clock(GameTimeMs / 1000f)} / 별 기준 {Clock(Def.starTimeSec)}  ×{timeScale:0.#}", style);
             if (GameTimeMs < _messageUntil) GUILayout.Label(LastMessage, style);
 
             GUILayout.BeginHorizontal();
@@ -307,7 +355,7 @@ namespace TowerDefense.Game
                 if (GUILayout.Button(label, btn, GUILayout.Height(30))) Placer.Toggle();
                 GUI.enabled = true;
             }
-            // ponytail: 베타 테스트용 — 40라운드를 다 돌지 않고 정산을 보려고
+            // ponytail: 베타 테스트용 — 15웨이브를 다 돌지 않고 정산을 보려고 (실패로 처리)
             if (!Over && GUILayout.Button("스테이지 종료", btn, GUILayout.Width(120), GUILayout.Height(30))) GameOver(false, "스테이지 종료");
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
@@ -317,14 +365,19 @@ namespace TowerDefense.Game
 
         private void DrawSettlement(GUIStyle style, GUIStyle btn)
         {
-            var r = new Rect(Screen.width / 2f - 260, Screen.height / 2f - 110, 520, 220);
+            var r = new Rect(Screen.width / 2f - 320, Screen.height / 2f - 130, 640, 260);
             GUI.Box(r, GUIContent.none);
             GUILayout.BeginArea(new Rect(r.x + 20, r.y + 16, r.width - 40, r.height - 30));
             GUILayout.Label("스테이지 정산", style);
             GUILayout.Label(_result, style);
             GUILayout.Label(_settlement, style);
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("메뉴로", btn, GUILayout.Height(40))) SceneManager.LoadScene(menuSceneName);
+            GUILayout.BeginHorizontal();
+            bool hasNext = StageList.Instance != null && Stage < StageList.Instance.Count;
+            if (Won && hasNext && GUILayout.Button("다음 스테이지", btn, GUILayout.Height(40))) StageFlow.LoadStage(Stage + 1);
+            if (!Won && GUILayout.Button("다시 하기", btn, GUILayout.Height(40))) SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            if (GUILayout.Button("스테이지 선택", btn, GUILayout.Height(40))) StageFlow.LoadStageSelect();
+            GUILayout.EndHorizontal();
             GUILayout.EndArea();
         }
     }

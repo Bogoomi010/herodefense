@@ -13,8 +13,10 @@ namespace TowerDefense.UI
     /// 시작 메뉴 UI 컨트롤러. UIDocument의 UXML에서 이름으로 요소를 찾아 동작을 연결한다.
     /// 패널을 스택으로 관리해 ESC/뒤로/아니오 버튼으로 최상단 패널을 닫는다.
     ///
+    /// 시작 → 저장 슬롯 3개 (docs/STAGE.md). 빈 슬롯은 난이도를 골라 새로 만들고, 있는 슬롯은 스테이지 선택으로 간다.
+    ///
     /// 사용하는 PlayerPrefs 키:
-    /// - "Difficulty" (int, TowerDefense.Core.Difficulty)
+    /// - "SaveSlot" (int, 지금 슬롯 — ProfileStore.Current)
     /// - "MasterVolume" (float, 기본 1)
     /// - "BgmVolume" (float, 기본 0.8)
     /// - "SfxVolume" (float, 기본 1)
@@ -25,7 +27,6 @@ namespace TowerDefense.UI
     [RequireComponent(typeof(UIDocument))]
     public sealed class MainMenuController : MonoBehaviour
     {
-        public string gameSceneName = "Map";
 
         private VisualElement _root;
         private readonly Dictionary<string, VisualElement> _panels = new Dictionary<string, VisualElement>();
@@ -42,9 +43,10 @@ namespace TowerDefense.UI
             RegisterPanel("panel-settings");
             RegisterPanel("panel-credits");
             RegisterPanel("panel-quit");
-            RegisterPanel("panel-skills");
+            RegisterPanel("panel-slots");
+            RegisterPanel("panel-delete");
 
-            BindClick("btn-start", () => Open("panel-difficulty"));
+            BindClick("btn-start", () => { RefreshSlots(); Open("panel-slots"); });
             BindClick("btn-settings", () => Open("panel-settings"));
             BindClick("btn-credits", () => Open("panel-credits"));
             BindClick("btn-quit", () => Open("panel-quit"));
@@ -57,7 +59,7 @@ namespace TowerDefense.UI
             BindClick("settings-back", CloseTop);
             BindClick("credits-back", CloseTop);
 
-            SetupSkills();
+            SetupSlots();
 
             BindClick("quit-yes", QuitGame);
             BindClick("quit-no", CloseTop);
@@ -82,6 +84,8 @@ namespace TowerDefense.UI
                 return;
             }
 
+            // 한 번에 맨 위 패널 하나만 보인다 — 아래 패널의 버튼을 잘못 누르지 않게
+            if (_panelStack.Count > 0) _panelStack.Peek().AddToClassList("hidden");
             panel.RemoveFromClassList("hidden");
             _panelStack.Push(panel);
         }
@@ -95,6 +99,7 @@ namespace TowerDefense.UI
 
             var top = _panelStack.Pop();
             top.AddToClassList("hidden");
+            if (_panelStack.Count > 0) _panelStack.Peek().RemoveFromClassList("hidden");
         }
 
         private void RegisterPanel(string name)
@@ -106,14 +111,87 @@ namespace TowerDefense.UI
             }
         }
 
-        // 난이도/종료 ------------------------------------------------
+        // 저장 슬롯 ------------------------------------------------
 
+        private int _newSlot, _deleteSlot;
+
+        private void SetupSlots()
+        {
+            BindClick("slots-back", CloseTop);
+            BindClick("delete-no", CloseTop);
+            BindClick("delete-yes", () =>
+            {
+                ProfileStore.Delete(_deleteSlot);
+                RefreshSlots();
+                CloseTop();
+            });
+            for (int i = 0; i < ProfileStore.SlotCount; i++)
+            {
+                int slot = i;
+                BindClick($"slot-{slot}", () => PickSlot(slot));
+                BindClick($"slot-del-{slot}", () =>
+                {
+                    _deleteSlot = slot;
+                    var title = Find<Label>("delete-title");
+                    if (title != null) title.text = $"슬롯 {slot + 1}을 삭제할까요?";
+                    Open("panel-delete");
+                });
+            }
+        }
+
+        private void RefreshSlots()
+        {
+            for (int i = 0; i < ProfileStore.SlotCount; i++)
+            {
+                var p = ProfileStore.Load(i);
+                var btn = Find<Button>($"slot-{i}");
+                if (btn != null) btn.text = p == null ? $"슬롯 {i + 1} — 새 게임" : $"슬롯 {i + 1} — {DifficultyName(p.difficulty)} · Lv {p.level} · 스테이지 {Progress(p)}";
+                // 깨진 파일도 지울 수 있게: 삭제 버튼은 파일이 있으면 보인다
+                var del = Find<Button>($"slot-del-{i}");
+                if (del != null) del.EnableInClassList("hidden", !ProfileStore.Exists(i));
+                if (btn != null && p == null && ProfileStore.Exists(i)) btn.text = $"슬롯 {i + 1} — 읽을 수 없음 (삭제 후 새로 시작)";
+            }
+        }
+
+        private void PickSlot(int slot)
+        {
+            if (ProfileStore.Load(slot) != null)
+            {
+                ProfileStore.Current = slot;
+                StageFlow.LoadStageSelect();
+                return;
+            }
+            if (ProfileStore.Exists(slot)) return; // 깨진 파일 — 삭제해야 새로 시작할 수 있다
+            _newSlot = slot;
+            Open("panel-difficulty");
+        }
+
+        /// <summary>빈 슬롯에 새 게임을 만든다. 난이도는 이후 바꿀 수 없다.</summary>
         private void SelectDifficulty(Difficulty difficulty)
         {
-            PlayerPrefs.SetInt("Difficulty", (int)difficulty);
-            PlayerPrefs.Save();
-            SceneManager.LoadScene(gameSceneName);
+            if (ProfileStore.Exists(_newSlot)) { Debug.LogWarning($"[MainMenuController] 슬롯 {_newSlot + 1}에 이미 기록이 있어 새로 만들지 않습니다"); return; }
+            try { ProfileStore.Save(_newSlot, new PlayerProfile { difficulty = difficulty }); }
+            catch (System.Exception e) { Debug.LogError($"[MainMenuController] 슬롯 저장 실패: {e}"); return; }
+            ProfileStore.Current = _newSlot;
+            StageFlow.LoadStageSelect();
         }
+
+        public static string DifficultyName(Difficulty d) => d switch
+        {
+            Difficulty.Easy => "쉬움",
+            Difficulty.Hard => "어려움",
+            _ => "보통",
+        };
+
+        /// <summary>도전할 수 있는 가장 뒤 스테이지 번호</summary>
+        private static int Progress(PlayerProfile p)
+        {
+            int n = 1;
+            while (p.IsCleared(n)) n++;
+            return n;
+        }
+
+        // 종료 ------------------------------------------------
 
         private void QuitGame()
         {
@@ -122,22 +200,6 @@ namespace TowerDefense.UI
 #else
             Application.Quit();
 #endif
-        }
-
-        // 스킬트리 -----------------------------------------------------
-
-        /// <summary>스킬트리는 튜토리얼을 마친 뒤에만 메뉴에 보인다 (docs/PLAYER_SKILL_TREE.md).</summary>
-        private void SetupSkills()
-        {
-            var profile = ProfileStore.Load();
-            var btn = Find<Button>("btn-skills");
-            if (btn == null || !profile.tutorialDone) return;
-            btn.RemoveFromClassList("hidden");
-
-            var view = new SkillTreeView(Find<VisualElement>("skills-viewport"), Find<Label>("skills-info"), Find<Label>("skills-desc"), profile);
-            btn.clicked += () => Open("panel-skills");
-            BindClick("skills-reset", view.ResetSkills);
-            BindClick("skills-back", CloseTop);
         }
 
         // 설정 패널 -----------------------------------------------------

@@ -1,0 +1,36 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <Style src="MainMenu.uss" />
+    <Style src="StageSelect.uss" />
+
+    <ui:VisualElement name="root" class="root stage-root">
+
+        <ui:VisualElement class="stage-header">
+            <ui:Button name="btn-back" text="← 메인 메뉴" class="menu-button header-button" />
+            <ui:Label text="스테이지 선택" class="panel-title stage-title" />
+            <ui:Label name="slot-info" text="" class="skills-info" />
+            <ui:Button name="btn-skills" text="스킬트리" class="menu-button header-button hidden" />
+        </ui:VisualElement>
+
+        <ui:VisualElement class="stage-body">
+            <ui:Button name="page-prev" text="◀" class="menu-button page-arrow" />
+            <ui:VisualElement name="stage-grid" class="stage-grid" />
+            <ui:Button name="page-next" text="▶" class="menu-button page-arrow" />
+        </ui:VisualElement>
+        <ui:Label name="page-label" text="" class="page-label" />
+
+        <ui:VisualElement name="panel-skills" class="panel skills-panel hidden">
+            <ui:VisualElement class="skills-header">
+                <ui:Label text="스킬트리" class="panel-title" />
+                <ui:Label name="skills-info" text="" class="skills-info" />
+            </ui:VisualElement>
+            <ui:VisualElement name="skills-viewport" class="skills-viewport" />
+            <ui:Label name="skills-desc" text="노드를 클릭해 찍는다 · 끌어서 이동 · 휠로 확대" class="diff-desc" />
+            <ui:VisualElement class="quit-buttons">
+                <ui:Button name="skills-reset" text="초기화 (무료)" class="menu-button panel-button" />
+                <ui:Button name="skills-back" text="뒤로" class="menu-button panel-button" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+
+    </ui:VisualElement>
+</ui:UXML>

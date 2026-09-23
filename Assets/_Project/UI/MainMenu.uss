@@ -198,3 +198,23 @@
     border-color: rgb(70, 62, 55);
     color: rgb(110, 100, 90);
 }
+
+/* 저장 슬롯 */
+.slot-row {
+    flex-direction: row;
+    width: 100%;
+}
+
+.slot-button {
+    flex-grow: 1;
+    -unity-text-align: middle-left;
+}
+
+.slot-delete {
+    width: 90px;
+    margin-left: 10px;
+}
+
+.slots-panel {
+    width: 720px;
+}

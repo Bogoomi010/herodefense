@@ -12,7 +12,6 @@ namespace TowerDefense.UI.Editor
         private const string PanelSettingsPath = "Assets/_Project/UI/MainMenuPanelSettings.asset";
         private const string UxmlPath = "Assets/_Project/UI/MainMenu.uxml";
         private const string ScenePath = "Assets/_Project/Scenes/MainMenu.unity";
-        private const string MapScenePath = "Assets/_Project/Scenes/Map.unity";
         private const string DefaultThemePath = "Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss";
 
         [MenuItem("TowerDefense/Setup Main Menu Scene")]
@@ -78,12 +77,7 @@ namespace TowerDefense.UI.Editor
             camera.backgroundColor = Color.black;
             cameraGo.tag = "MainCamera";
 
-            EditorBuildSettings.scenes = new[]
-            {
-                new EditorBuildSettingsScene(ScenePath, true),
-                new EditorBuildSettingsScene(MapScenePath, true)
-            };
-
+            // 빌드 설정은 BetaSetup.SetupStages가 관리한다 (메뉴 → 스테이지 선택 → 스테이지들)
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
 

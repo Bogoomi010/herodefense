@@ -99,7 +99,7 @@ namespace TowerDefense.UI
 
         private void Save()
         {
-            try { ProfileStore.Save(_profile); }
+            try { ProfileStore.SaveCurrent(_profile); }
             catch (System.Exception e) { Debug.LogError($"[SkillTreeView] 프로필 저장 실패: {e}"); }
         }
 

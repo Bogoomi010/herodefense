@@ -1,6 +1,9 @@
+using System.Collections.Generic;
 using System.IO;
 using TowerDefense.Core;
 using UnityEditor;
+using UnityEditor.SceneManagement;
+using TowerDefense.Map;
 using UnityEngine;
 
 namespace TowerDefense.Game.EditorTools
@@ -49,6 +52,64 @@ namespace TowerDefense.Game.EditorTools
             AssetDatabase.CreateAsset(def, SkillTreePath);
             AssetDatabase.SaveAssets();
             Debug.Log($"[BetaSetup] 스킬트리 예시 생성: {SkillTreePath} ({def.nodes.Count}노드)");
+        }
+
+        private const string SceneDir = "Assets/_Project/Scenes";
+        private const string StagesPath = "Assets/_Project/Resources/Stages.asset";
+
+        /// <summary>
+        /// 스테이지 씬과 목록 (docs/STAGE.md). Map → Stage_01로 이름을 바꾸고(GUID 유지),
+        /// 테스트용 Stage_02~04를 복제해 시드만 바꾼다(녹색 지대 밖으로 밀려난 나무는 지운다). 4번은 보스 스테이지.
+        /// 빌드 설정: MainMenu → StageSelect → Stage_01…
+        /// </summary>
+        [MenuItem("TowerDefense/Beta/Setup Stages")]
+        public static void SetupStages()
+        {
+            string first = $"{SceneDir}/Stage_01.unity";
+            if (!File.Exists(first) && File.Exists($"{SceneDir}/Map.unity"))
+            {
+                string err = AssetDatabase.MoveAsset($"{SceneDir}/Map.unity", first);
+                if (!string.IsNullOrEmpty(err)) { Debug.LogError($"[BetaSetup] Map 이름 변경 실패: {err}"); return; }
+            }
+
+            int[] seeds = { 1, 7, 23, 42 };
+            for (int n = 2; n <= seeds.Length; n++)
+            {
+                string path = $"{SceneDir}/Stage_{n:00}.unity";
+                if (File.Exists(path)) continue;
+                AssetDatabase.CopyAsset(first, path);
+                var scene = EditorSceneManager.OpenScene(path);
+                var map = Object.FindFirstObjectByType<TileMap>();
+                map.seed = seeds[n - 1];
+                map.Generate();
+                int removed = 0;
+                foreach (var t in Object.FindObjectsByType<FieldTree>(FindObjectsSortMode.None))
+                    if (!map.IsGround(t.transform.position)) { Object.DestroyImmediate(t.gameObject); removed++; }
+                EditorSceneManager.MarkSceneDirty(scene);
+                EditorSceneManager.SaveScene(scene);
+                Debug.Log($"[BetaSetup] {path} 생성 (시드 {map.seed}, 경로에 걸린 나무 {removed}그루 제거)");
+            }
+
+            var list = AssetDatabase.LoadAssetAtPath<StageList>(StagesPath);
+            if (list == null)
+            {
+                list = ScriptableObject.CreateInstance<StageList>();
+                float[] hp = { 1f, 1.15f, 1.3f, 1.5f };
+                int[] exp = { 60, 70, 80, 120 };
+                for (int n = 1; n <= seeds.Length; n++)
+                    list.stages.Add(new StageDef { sceneName = $"Stage_{n:00}", starTimeSec = 420f, hpMul = hp[n - 1], clearExp = exp[n - 1], clearSkillPoints = 1 });
+                AssetDatabase.CreateAsset(list, StagesPath);
+            }
+
+            var scenes = new List<EditorBuildSettingsScene>
+            {
+                new EditorBuildSettingsScene($"{SceneDir}/MainMenu.unity", true),
+                new EditorBuildSettingsScene($"{SceneDir}/StageSelect.unity", true),
+            };
+            foreach (var st in list.stages) scenes.Add(new EditorBuildSettingsScene($"{SceneDir}/{st.sceneName}.unity", true));
+            EditorBuildSettings.scenes = scenes.ToArray();
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[BetaSetup] 스테이지 {list.stages.Count}개, 빌드 씬 {scenes.Count}개 설정");
         }
     }
 }

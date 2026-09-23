@@ -1,0 +1,99 @@
+.stage-root {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 32px 48px;
+    background-color: rgba(0, 0, 0, 0.35);
+}
+
+.stage-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+}
+
+.header-button {
+    margin: 0;
+    width: 200px;
+}
+
+.stage-title {
+    margin: 0;
+    font-size: 40px;
+}
+
+.stage-body {
+    flex-grow: 1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+}
+
+.page-arrow {
+    width: 72px;
+    height: 120px;
+    margin: 0 24px;
+    font-size: 32px;
+}
+
+.stage-grid {
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 900px;
+    justify-content: center;
+}
+
+.stage-cell {
+    width: 150px;
+    height: 150px;
+    margin: 14px;
+    padding: 8px;
+    border-width: 3px;
+    border-radius: 12px;
+    background-color: rgb(52, 110, 88);
+    border-color: rgb(210, 235, 220);
+    color: rgb(250, 250, 240);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.stage-cell:hover {
+    border-color: rgb(255, 210, 110);
+}
+
+.stage-cell.boss {
+    background-color: rgb(120, 40, 40);
+}
+
+.stage-cell.locked {
+    background-color: rgb(40, 40, 40);
+    border-color: rgb(80, 80, 80);
+    color: rgb(130, 130, 130);
+}
+
+.stage-number {
+    font-size: 48px;
+    -unity-font-style: bold;
+    color: rgb(250, 250, 240);
+}
+
+.stage-cell.locked .stage-number {
+    color: rgb(130, 130, 130);
+}
+
+.stage-stars {
+    font-size: 24px;
+    color: rgb(255, 205, 80);
+}
+
+.stage-tag {
+    font-size: 14px;
+    color: rgb(255, 230, 200);
+}
+
+.page-label {
+    -unity-text-align: middle-center;
+    font-size: 18px;
+    color: rgb(242, 235, 221);
+}
