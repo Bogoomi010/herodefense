@@ -8,6 +8,7 @@
 
             <ui:VisualElement name="button-list" class="button-list">
                 <ui:Button name="btn-start" text="시작" class="menu-button" />
+                <ui:Button name="btn-skills" text="스킬트리" class="menu-button hidden" />
                 <ui:Button name="btn-settings" text="설정" class="menu-button" />
                 <ui:Button name="btn-credits" text="만든이 소개" class="menu-button" />
                 <ui:Button name="btn-quit" text="종료" class="menu-button" />
@@ -63,6 +64,19 @@
             <ui:Label text="만든이" class="panel-title" />
             <ui:Label name="credits-text" text="기획·개발: Bogumi&#10;도구: Unity 6, Blender&#10;연락처: -" class="credits-text" />
             <ui:Button name="credits-back" text="뒤로" class="menu-button panel-button back-button" />
+        </ui:VisualElement>
+
+        <ui:VisualElement name="panel-skills" class="panel skills-panel hidden">
+            <ui:VisualElement class="skills-header">
+                <ui:Label text="스킬트리" class="panel-title" />
+                <ui:Label name="skills-info" text="" class="skills-info" />
+            </ui:VisualElement>
+            <ui:VisualElement name="skills-viewport" class="skills-viewport" />
+            <ui:Label name="skills-desc" text="노드를 클릭해 찍는다 · 끌어서 이동 · 휠로 확대" class="diff-desc" />
+            <ui:VisualElement class="quit-buttons">
+                <ui:Button name="skills-reset" text="초기화 (무료)" class="menu-button panel-button" />
+                <ui:Button name="skills-back" text="뒤로" class="menu-button panel-button" />
+            </ui:VisualElement>
         </ui:VisualElement>
 
         <ui:VisualElement name="panel-quit" class="panel hidden">

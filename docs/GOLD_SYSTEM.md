@@ -4,6 +4,12 @@
 > 구현: `Assets/_Project/Scripts/Core/Economy.cs` (순수 C#, Unity 비의존) · 테스트: `Assets/_Project/Tests/EditMode/EconomyTests.cs`.
 > 수치 변경은 이 문서가 아니라 Core 코드의 상수를 고치고 시뮬레이터로 재검증한다.
 
+> **2026-09-23 기획 변경 (이 줄이 아래 본문보다 우선):**
+> - 골드는 스테이지마다 초기화된다.
+> - 지출처는 **포탑 설치**([TOWER_PLACEMENT.md](TOWER_PLACEMENT.md))와 **포탑 업그레이드**([TOWER_UPGRADE.md](TOWER_UPGRADE.md)) 두 가지다.
+> - 시작 골드와 골드 획득량은 [플레이어 스킬](PLAYER_SKILL_TREE.md)로 늘릴 수 있다.
+> - 원본의 **뽑기·합성·주식은 없다.** 아래 본문의 해당 항목(소환권, 뽑기 할인, 합성, `StockMarket` 등)은 레거시 기획으로 보류한다. 코드(`Economy`, `StockMarket`)도 당장 지우지 않고 둔다.
+
 ## 1. 원칙
 
 1. **골드는 판 안에서만 산다.** 시작 100G, 판이 끝나면 골드·주식 모두 소멸. 판 간 누적 자원은 소환권·도감·스토리 진행뿐이다.

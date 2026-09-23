@@ -135,3 +135,66 @@
     flex-direction: column;
     width: 100%;
 }
+
+/* 스킬트리 */
+.skills-panel {
+    width: 80%;
+    height: 85%;
+    background-color: rgba(20, 15, 10, 0.97);
+}
+
+.skills-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.skills-info {
+    font-size: 20px;
+    color: rgb(232, 184, 109);
+}
+
+.skills-viewport {
+    flex-grow: 1;
+    overflow: hidden;
+    margin-bottom: 12px;
+    background-color: rgba(0, 0, 0, 0.35);
+    border-radius: 8px;
+}
+
+.skill-node {
+    position: absolute;
+    width: 64px;
+    height: 64px;
+    margin: 0;
+    padding: 2px;
+    border-width: 2px;
+    border-radius: 8px;
+    font-size: 11px;
+    white-space: normal;
+    -unity-text-align: middle-center;
+    color: rgb(242, 235, 221);
+}
+
+.skill-node.keystone {
+    width: 84px;
+    height: 84px;
+    border-radius: 42px;
+    font-size: 12px;
+}
+
+.skill-node.taken {
+    background-color: rgb(120, 80, 30);
+    border-color: rgb(255, 200, 90);
+}
+
+.skill-node.open {
+    background-color: rgb(70, 45, 40);
+    border-color: rgb(200, 150, 90);
+}
+
+.skill-node.locked {
+    background-color: rgb(30, 26, 24);
+    border-color: rgb(70, 62, 55);
+    color: rgb(110, 100, 90);
+}

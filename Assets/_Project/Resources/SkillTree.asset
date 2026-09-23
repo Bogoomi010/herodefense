@@ -1,0 +1,164 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b4bcb9eb2d3f71b4496dc46b9bea7dd9, type: 3}
+  m_Name: SkillTree
+  m_EditorClassIdentifier: TowerDefense.Game::TowerDefense.Game.SkillTreeDef
+  nodes:
+  - id: start
+    title: "\uAE30\uBCF8"
+    effect: 0
+    value: 0
+    keystone: 0
+    start: 1
+    x: 0
+    y: 0
+    links: []
+  - id: zone1
+    title: "\uAD6C\uC5ED \uCD95\uC18C"
+    effect: 1
+    value: 0.1
+    keystone: 0
+    start: 0
+    x: 0
+    y: 1
+    links:
+    - start
+  - id: zone2
+    title: "\uAD6C\uC5ED \uCD95\uC18C"
+    effect: 1
+    value: 0.1
+    keystone: 0
+    start: 0
+    x: 0
+    y: 2
+    links:
+    - zone1
+  - id: zone3
+    title: "\uBC00\uC9D1 \uAC74\uC124"
+    effect: 1
+    value: 0.1
+    keystone: 1
+    start: 0
+    x: 0
+    y: 3
+    links:
+    - zone2
+  - id: upg1
+    title: "\uBE60\uB978 \uC5C5\uADF8\uB808\uC774\uB4DC"
+    effect: 2
+    value: 0.1
+    keystone: 0
+    start: 0
+    x: 1
+    y: 0
+    links:
+    - start
+  - id: upg2
+    title: "\uBE60\uB978 \uC5C5\uADF8\uB808\uC774\uB4DC"
+    effect: 2
+    value: 0.1
+    keystone: 0
+    start: 0
+    x: 2
+    y: 0
+    links:
+    - upg1
+  - id: upg3
+    title: "\uC219\uB828\uACF5"
+    effect: 2
+    value: 0.15
+    keystone: 1
+    start: 0
+    x: 3
+    y: 0
+    links:
+    - upg2
+  - id: desc1
+    title: "\uAC15\uB9BC \uCFE8\uD0C0\uC784"
+    effect: 3
+    value: 0.1
+    keystone: 0
+    start: 0
+    x: -1
+    y: 0
+    links:
+    - start
+  - id: desc2
+    title: "\uAC15\uB9BC \uCFE8\uD0C0\uC784"
+    effect: 3
+    value: 0.1
+    keystone: 0
+    start: 0
+    x: -2
+    y: 0
+    links:
+    - desc1
+  - id: desc3
+    title: "\uC2E0\uC18D \uAC15\uB9BC"
+    effect: 3
+    value: 0.15
+    keystone: 1
+    start: 0
+    x: -3
+    y: 0
+    links:
+    - desc2
+  - id: exp1
+    title: "\uACBD\uD5D8\uCE58"
+    effect: 4
+    value: 0.1
+    keystone: 0
+    start: 0
+    x: -1
+    y: -1
+    links:
+    - start
+  - id: exp2
+    title: "\uBC30\uC6C0\uC758 \uAE30\uC068"
+    effect: 4
+    value: 0.2
+    keystone: 1
+    start: 0
+    x: -2
+    y: -2
+    links:
+    - exp1
+  - id: sgold
+    title: "\uC2DC\uC791 \uACE8\uB4DC"
+    effect: 5
+    value: 30
+    keystone: 0
+    start: 0
+    x: 1
+    y: -1
+    links:
+    - start
+  - id: gold1
+    title: "\uACE8\uB4DC \uD68D\uB4DD"
+    effect: 6
+    value: 0.1
+    keystone: 0
+    start: 0
+    x: 2
+    y: -2
+    links:
+    - sgold
+  - id: gold2
+    title: "\uD669\uAE08 \uC190"
+    effect: 6
+    value: 0.15
+    keystone: 1
+    start: 0
+    x: 3
+    y: -3
+    links:
+    - gold1

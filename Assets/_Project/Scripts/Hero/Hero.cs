@@ -11,6 +11,7 @@ namespace TowerDefense.Hero
     /// <summary>
     /// 절벽 위(perch)에 서서 전장을 내려다보는 영웅.
     /// 조작: Ctrl+호버(Perched) = 강림 지점 표시, Ctrl+좌클릭(Perched) = 강림, WASD(Active) = 이동, 좌클릭(Active) = 가까운 적 공격, T = 절벽 귀환 (강림 후 returnCooldownSec가 지나야 가능).
+    /// 강림은 귀환 후 descendCooldownSec(플레이어 스킬로 단축)가 지나야 다시 할 수 있다 (docs/HERO_DESCENT.md).
     /// </summary>
     public sealed class Hero : MonoBehaviour
     {
@@ -36,6 +37,12 @@ namespace TowerDefense.Hero
         [Header("강림")]
         public float descendDuration = 0.7f;
         public float descendArcHeight = 4f;
+        [Tooltip("귀환한 뒤 이 시간이 지나야 다시 강림할 수 있다 (플레이어 스킬로 단축)")]
+        public float descendCooldownSec = 20f;
+        /// <summary>다시 강림할 수 있을 때까지 남은 시간(초). Perched가 아니면 0.</summary>
+        public float DescendCooldownLeft => State == HeroState.Perched
+            ? Mathf.Max(0f, _returnedAt + descendCooldownSec * (session != null ? session.Bonuses.DescentCdMul : 1f) - Time.time) : 0f;
+        private float _returnedAt = float.NegativeInfinity;
         [Header("귀환")]
         [Tooltip("강림 완료 후 이 시간이 지나야 T로 귀환할 수 있다")]
         public float returnCooldownSec = 10f;
@@ -88,6 +95,7 @@ namespace TowerDefense.Hero
             if (col != null) col.enabled = false;
 
             transform.SetPositionAndRotation(PerchPos, PerchRot);
+            if (GetComponent<HeroInteractor>() == null) gameObject.AddComponent<HeroInteractor>();
         }
 
         private void Update()
@@ -107,7 +115,7 @@ namespace TowerDefense.Hero
             if (cam == null || Mouse.current == null || Keyboard.current == null) { HideMarker(); return; }
 
             bool ctrl = Keyboard.current.leftCtrlKey.isPressed || Keyboard.current.rightCtrlKey.isPressed;
-            if (!ctrl) { HideMarker(); return; }
+            if (!ctrl || DescendCooldownLeft > 0f) { HideMarker(); return; }
 
             var ray = cam.ScreenPointToRay(Mouse.current.position.ReadValue());
             if (!Physics.Raycast(ray, out var hit) || map == null || map.WorldToTile(hit.point) == null)
@@ -248,7 +256,7 @@ namespace TowerDefense.Hero
 
         public void Descend(Vector3 worldPoint)
         {
-            if (State != HeroState.Perched) return;
+            if (State != HeroState.Perched || DescendCooldownLeft > 0f) return;
             HideMarker();
             _descendFrom = PerchPos;
             _descendTo = worldPoint;
@@ -262,6 +270,7 @@ namespace TowerDefense.Hero
             HideMarker();
             transform.SetPositionAndRotation(PerchPos, PerchRot);
             if (_beam != null) _beam.enabled = false;
+            _returnedAt = Time.time;
             SetState(HeroState.Perched);
         }
 
@@ -318,6 +327,7 @@ namespace TowerDefense.Hero
         private void SetState(HeroState next)
         {
             State = next;
+            if (session != null) session.HeroInField = next != HeroState.Perched;
             StateChanged?.Invoke(next);
         }
     }

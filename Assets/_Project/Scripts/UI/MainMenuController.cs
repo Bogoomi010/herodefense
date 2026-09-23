@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using TowerDefense.Core;
+using TowerDefense.Game;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -41,6 +42,7 @@ namespace TowerDefense.UI
             RegisterPanel("panel-settings");
             RegisterPanel("panel-credits");
             RegisterPanel("panel-quit");
+            RegisterPanel("panel-skills");
 
             BindClick("btn-start", () => Open("panel-difficulty"));
             BindClick("btn-settings", () => Open("panel-settings"));
@@ -54,6 +56,8 @@ namespace TowerDefense.UI
 
             BindClick("settings-back", CloseTop);
             BindClick("credits-back", CloseTop);
+
+            SetupSkills();
 
             BindClick("quit-yes", QuitGame);
             BindClick("quit-no", CloseTop);
@@ -118,6 +122,22 @@ namespace TowerDefense.UI
 #else
             Application.Quit();
 #endif
+        }
+
+        // 스킬트리 -----------------------------------------------------
+
+        /// <summary>스킬트리는 튜토리얼을 마친 뒤에만 메뉴에 보인다 (docs/PLAYER_SKILL_TREE.md).</summary>
+        private void SetupSkills()
+        {
+            var profile = ProfileStore.Load();
+            var btn = Find<Button>("btn-skills");
+            if (btn == null || !profile.tutorialDone) return;
+            btn.RemoveFromClassList("hidden");
+
+            var view = new SkillTreeView(Find<VisualElement>("skills-viewport"), Find<Label>("skills-info"), Find<Label>("skills-desc"), profile);
+            btn.clicked += () => Open("panel-skills");
+            BindClick("skills-reset", view.ResetSkills);
+            BindClick("skills-back", CloseTop);
         }
 
         // 설정 패널 -----------------------------------------------------

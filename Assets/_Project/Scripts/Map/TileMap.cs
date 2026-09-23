@@ -66,7 +66,6 @@ namespace TowerDefense.Map
             mr.sharedMaterials = new[] { groundMaterial, pathMaterial, spawnMaterial, goalMaterial };
 
             RebuildWaypoints();
-            if (TryGetComponent<TreeScatter>(out var trees)) trees.Scatter();
         }
 
         /// <summary>시드를 바꾸고 다시 생성.</summary>
@@ -82,7 +81,6 @@ namespace TowerDefense.Map
         {
             Grid = PathGenerator.Generate(width, height, seed, windiness);
             RebuildWaypoints();
-            if (TryGetComponent<TreeScatter>(out var trees)) trees.Scatter(); // DontSave라 도메인 리로드 후 사라진다
         }
 
         private void RebuildWaypoints()
@@ -107,6 +105,9 @@ namespace TowerDefense.Map
             if (Grid == null || !Grid.InBounds(x, y)) return null;
             return new Vector2Int(x, y);
         }
+
+        /// <summary>녹색 지대(Ground 타일) 위인가. 격자 밖이면 false.</summary>
+        public bool IsGround(Vector3 world) => WorldToTile(world) is Vector2Int t && Grid.Get(t) == TileType.Ground;
 
         private static void DestroyMesh(Mesh m)
         {

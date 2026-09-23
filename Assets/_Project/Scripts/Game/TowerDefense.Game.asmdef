@@ -4,7 +4,8 @@
     "references": [
         "TowerDefense.Core",
         "TowerDefense.Map",
-        "Unity.RenderPipelines.Universal.Runtime"
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

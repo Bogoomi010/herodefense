@@ -17,6 +17,8 @@ namespace TowerDefense.Core
         StockSell,
         Gacha, // 지출
         StockBuy, // 지출
+        TowerBuild, // 지출: 포탑 설치
+        TowerUpgrade, // 지출: 포탑 업그레이드
         Debug,
     }
 

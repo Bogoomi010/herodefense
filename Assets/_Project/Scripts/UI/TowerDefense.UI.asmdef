@@ -3,6 +3,7 @@
     "rootNamespace": "TowerDefense.UI",
     "references": [
         "TowerDefense.Core",
+        "TowerDefense.Game",
         "Unity.InputSystem"
     ],
     "includePlatforms": [],

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using TowerDefense.Core;
 using TowerDefense.Map;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace TowerDefense.Game
 {
@@ -22,14 +23,14 @@ namespace TowerDefense.Game
         [Range(0.25f, 8f)] public float timeScale = 1f;
         [Tooltip("시작 라운드 - 1 (예: 9 → 10라운드 보스부터 시작)")]
         [Min(0)] public int skipRounds = 0;
-        [Tooltip("경로 옆에 자동 배치할 테스트 타워 수")]
-        [Min(0)] public int testTowers = 3;
         public bool showHud = true;
+        [Tooltip("스테이지를 마친 뒤 돌아갈 메뉴 씬")]
+        public string menuSceneName = "MainMenu";
 
         // ---------- 세션 상태 ----------
         public int Death { get; private set; } = GameConfig.DeathStart;
         /// <summary>골드 경제 — 모든 골드 증감은 여기를 지난다 (docs/GOLD_SYSTEM.md)</summary>
-        public Economy Economy { get; } = new Economy(new Mods());
+        public Economy Economy { get; private set; }
         public int Gold => Economy.Gold;
         public int Kills { get; private set; }
         public int Leaked { get; private set; }
@@ -40,11 +41,30 @@ namespace TowerDefense.Game
         public Mods Mods => Economy.Mods;
         public IReadOnlyList<EnemyView> Enemies => _enemies;
 
+        // ---------- 플레이어 성장 (docs/PLAYER_SKILL_TREE.md) ----------
+        public PlayerProfile Profile { get; private set; }
+        /// <summary>스테이지 시작 시 찍혀 있던 스킬의 합. 스테이지 도중에는 바뀌지 않는다.</summary>
+        public PlayerBonuses Bonuses { get; private set; }
+        /// <summary>이번 스테이지에서 얻은 플레이어 경험치 (스킬 배율 적용 후). 정산 때 프로필에 더한다.</summary>
+        public int StageExp { get; private set; }
+        /// <summary>영웅이 필드에 내려가 있는가 (포탑 설치는 절벽 시점에서만)</summary>
+        public bool HeroInField { get; set; }
+        public TowerPlacer Placer { get; private set; }
+
+        private string _settlement = "";
+
         private readonly List<EnemyView> _enemies = new List<EnemyView>();
         private PathFollower _path;
         private Transform _enemyRoot;
         private float _messageUntil;
         private string _result = "";
+
+        private void Awake()
+        {
+            Profile = ProfileStore.Load();
+            Bonuses = SkillTreeDef.LoadOrEmpty().Bonuses(Profile);
+            Economy = new Economy(new Mods(), GameConfig.StartGold + Bonuses.StartGold);
+        }
 
         private void Start()
         {
@@ -57,7 +77,8 @@ namespace TowerDefense.Game
             _enemyRoot.SetParent(transform, false);
             Wave = new WaveSystem(this);
             for (int i = 0; i < skipRounds; i++) Wave.SkipRound();
-            PlaceTestTowers();
+            Placer = GetComponent<TowerPlacer>();
+            if (Placer == null) Placer = gameObject.AddComponent<TowerPlacer>();
         }
 
         private void Update()
@@ -116,7 +137,7 @@ namespace TowerDefense.Game
         {
             var m = e.State;
             Kills++;
-            Economy.RewardKill(m, GameTimeMs); // 스킬 killGoldMul은 유닛 전투 이식(M4) 때 전달
+            Economy.RewardKill(m, GameTimeMs, Bonuses.GoldMul);
             Remove(e);
 
             // 🗑 분열: 쓰레기 상위 몹은 죽으면 봉투 2개로 갈라진다
@@ -181,7 +202,7 @@ namespace TowerDefense.Game
 
         public void RoundClear(int round)
         {
-            int bonus = Economy.RewardRoundClear(round);
+            int bonus = Economy.RewardRoundClear(round, Bonuses.GoldMul);
             Message($"라운드 {round} 클리어 +{bonus}G");
         }
 
@@ -202,6 +223,8 @@ namespace TowerDefense.Game
             Wave.Stop();
             _result = win ? $"승리 — {reason}" : $"패배 — {reason}";
             Debug.Log($"[EnemySpawner] {_result}");
+            _settlement = Settle();
+            if (Placer != null) Placer.SetActive(false);
         }
 
         private int CountNonGolden()
@@ -211,50 +234,97 @@ namespace TowerDefense.Game
             return n;
         }
 
-        // ---------- 테스트 타워 ----------
+        // ---------- 조회 ----------
 
-        /// <summary>경로를 N등분한 지점마다 가장 가까운 지형 타일에 큐브 타워를 놓는다.</summary>
-        private void PlaceTestTowers()
+        /// <summary>XZ 거리 기준 사거리 안 가장 가까운 살아 있는 몹. 없으면 null.</summary>
+        public EnemyView NearestEnemy(Vector3 from, float range)
         {
-            if (testTowers <= 0) return;
-            var grid = map.Grid;
-            var used = new HashSet<Vector2Int>();
-            for (int k = 1; k <= testTowers; k++)
+            float best = range * range;
+            EnemyView target = null;
+            foreach (var e in _enemies)
             {
-                int idx = Mathf.Clamp(Mathf.RoundToInt((float)k / (testTowers + 1) * (grid.Path.Count - 1)), 0, grid.Path.Count - 1);
-                var p = grid.Path[idx];
-                Vector2Int? best = null;
-                foreach (var d in new[] { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right,
-                                          new Vector2Int(1, 1), new Vector2Int(-1, 1), new Vector2Int(1, -1), new Vector2Int(-1, -1) })
-                {
-                    var q = p + d;
-                    if (!grid.InBounds(q) || grid.IsWalkable(q) || used.Contains(q)) continue;
-                    best = q;
-                    break;
-                }
-                if (best == null) continue;
-                used.Add(best.Value);
-                TestTower.Create(this, map, best.Value, k);
+                if (e.State.Dead) continue;
+                var p = e.transform.position;
+                float dx = p.x - from.x, dz = p.z - from.z;
+                float d2 = dx * dx + dz * dz;
+                if (d2 > best) continue;
+                best = d2;
+                target = e;
             }
+            return target;
+        }
+
+        /// <summary>나무 베기 등으로 얻은 플레이어 경험치 (스킬 배율 적용). 실제 증가량 반환.</summary>
+        public int AddStageExp(int raw)
+        {
+            int gained = Mathf.RoundToInt(raw * Bonuses.ExpMul);
+            StageExp += gained;
+            return gained;
+        }
+
+        /// <summary>스테이지 정산: 경험치를 프로필에 더하고 저장한다. 결과 문구 반환.</summary>
+        private string Settle()
+        {
+            int before = Profile.level;
+            int levels = Profile.AddExp(StageExp);
+            Profile.tutorialDone = true; // 임시: 첫 스테이지를 끝내면 튜토리얼 완료
+            try { ProfileStore.Save(Profile); }
+            catch (System.Exception e) { Debug.LogError($"[EnemySpawner] 프로필 저장 실패: {e}"); return "프로필 저장 실패 — 로그를 확인하세요"; }
+            return levels > 0
+                ? $"경험치 +{StageExp}  레벨 {before} → {Profile.level}  스킬 포인트 +{levels * PlayerProfile.PointsPerLevel}"
+                : $"경험치 +{StageExp}  (다음 레벨까지 {PlayerProfile.ExpToNext(Profile.level) - Profile.exp})";
         }
 
         // ---------- HUD ----------
 
+        private static readonly Rect HudRect = new Rect(10, 10, 520, 200);
+
+        /// <summary>마우스(스크린 좌표, 좌하단 원점)가 HUD 위에 있는가 — HUD 클릭이 설치 클릭으로 새지 않게.</summary>
+        public bool IsOverHud(Vector2 mouse) => showHud && HudRect.Contains(new Vector2(mouse.x, Screen.height - mouse.y));
+
+        // ponytail: 베타 HUD는 IMGUI. 레이아웃이 확정되면 UI Toolkit으로 옮긴다
         private void OnGUI()
         {
             if (!showHud || Wave == null) return;
             var style = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold };
             style.normal.textColor = Color.white;
-            var box = new GUIStyle(GUI.skin.box);
-            GUI.Box(new Rect(10, 10, 520, 150), GUIContent.none, box);
-            GUILayout.BeginArea(new Rect(20, 16, 500, 140));
+            var btn = new GUIStyle(GUI.skin.button) { fontSize = 16 };
+            GUI.Box(HudRect, GUIContent.none);
+            GUILayout.BeginArea(new Rect(HudRect.x + 10, HudRect.y + 6, HudRect.width - 20, HudRect.height - 10));
             string state = Wave.State == WaveSystem.WaveState.Break ? "휴식" : "진행";
             GUILayout.Label($"라운드 {Wave.Round}/{GameConfig.RoundMax}  [{state}]  남은 시간 {Wave.TimeLeftSec}s  ×{timeScale:0.#}", style);
             int streak = Economy.StreakAt(GameTimeMs);
             GUILayout.Label($"몹 {_enemies.Count}  처치 {Kills}  진입 {Leaked}  데스 {Death}  골드 {Gold}" +
                             (streak >= Events.StreakMin ? $"  🔥{streak}" : ""), style);
+            GUILayout.Label($"Lv {Profile.level}  스테이지 경험치 +{StageExp}", style);
             if (GameTimeMs < _messageUntil) GUILayout.Label(LastMessage, style);
-            if (Over) GUILayout.Label(_result, style);
+
+            GUILayout.BeginHorizontal();
+            if (Placer != null)
+            {
+                GUI.enabled = Placer.CanEnter;
+                string label = Placer.Active ? $"설치 중: {TowerPlacer.Describe(Placer.LastResult)} (우클릭 취소)" : $"포탑 설치 {Placer.spec.cost}G (B)";
+                if (GUILayout.Button(label, btn, GUILayout.Height(30))) Placer.Toggle();
+                GUI.enabled = true;
+            }
+            // ponytail: 베타 테스트용 — 40라운드를 다 돌지 않고 정산을 보려고
+            if (!Over && GUILayout.Button("스테이지 종료", btn, GUILayout.Width(120), GUILayout.Height(30))) GameOver(false, "스테이지 종료");
+            GUILayout.EndHorizontal();
+            GUILayout.EndArea();
+
+            if (Over) DrawSettlement(style, btn);
+        }
+
+        private void DrawSettlement(GUIStyle style, GUIStyle btn)
+        {
+            var r = new Rect(Screen.width / 2f - 260, Screen.height / 2f - 110, 520, 220);
+            GUI.Box(r, GUIContent.none);
+            GUILayout.BeginArea(new Rect(r.x + 20, r.y + 16, r.width - 40, r.height - 30));
+            GUILayout.Label("스테이지 정산", style);
+            GUILayout.Label(_result, style);
+            GUILayout.Label(_settlement, style);
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("메뉴로", btn, GUILayout.Height(40))) SceneManager.LoadScene(menuSceneName);
             GUILayout.EndArea();
         }
     }
