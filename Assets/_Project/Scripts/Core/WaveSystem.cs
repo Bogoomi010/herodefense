@@ -15,8 +15,9 @@ namespace TowerDefense.Core
     /// <summary>
     /// 스테이지의 웨이브 상태 기계 (docs/STAGE.md). 원본 systems/WaveSystem.ts에서 출발.
     /// 휴식 → 웨이브 진행(크립 N마리 0.8초 간격, 전멸 시 조기 종료, 시간이 다 되면 남은 크립을 둔 채 다음 웨이브) → 휴식.
-    /// 마지막 웨이브는 시간과 관계없이, 크립을 모두 내보냈고 필드가 비면 클리어(Victory).
-    /// 보스 스테이지는 마지막 웨이브에 보스 1기가 나온다 (보스 규칙 확정 전 임시). 스테이지 제한 시간은 없다.
+    /// 일반 스테이지: 마지막 웨이브는 시간과 관계없이, 크립을 모두 내보냈고 필드가 비면 클리어(Victory).
+    /// 보스 스테이지: 마지막 웨이브에 크립과 보스 1기(맨 먼저)가 함께 나오고, 보스를 잡는 즉시 클리어(<see cref="NotifyBossKilled"/>).
+    /// 보스가 도착하면 실패는 세션이 처리한다. 스테이지 제한 시간은 없다.
     /// </summary>
     public sealed class WaveSystem
     {
@@ -50,10 +51,14 @@ namespace TowerDefense.Core
 
         public bool IsBossRound(int r) => BossAtEnd && r == WaveCount;
 
-        /// <summary>보스 처치 알림 — 마지막 웨이브 클리어 판정은 Update가 필드가 비었는지로 한다.</summary>
+        /// <summary>보스 처치 → 필드에 크립이 남아 있어도 즉시 클리어.</summary>
         public void NotifyBossKilled()
         {
-            if (!_done) _cb.Message("보스 처치!");
+            if (_done) return;
+            _cb.Message("보스 처치!");
+            _done = true;
+            _cb.RoundClear(Round);
+            _cb.Victory();
         }
 
         public void Stop() => _done = true;
@@ -76,11 +81,11 @@ namespace TowerDefense.Core
             }
 
             bool boss = IsBossRound(Round);
-            int toSpawn = boss ? 1 : MobsPerWave;
+            int toSpawn = MobsPerWave + (boss ? 1 : 0);
             _spawnT -= deltaMs;
             if (_spawned < toSpawn && _spawnT <= 0f)
             {
-                _cb.Spawn(Round, boss);
+                _cb.Spawn(Round, boss && _spawned == 0); // 보스 웨이브는 보스가 맨 먼저
                 _spawned++;
                 _spawnT = GameConfig.SpawnInterval * 1000f;
             }
@@ -88,8 +93,8 @@ namespace TowerDefense.Core
 
             if (IsLastWave)
             {
-                // 마지막 웨이브: 시간 제한 없이 필드가 빌 때까지
-                if (allOut && _cb.MobCount() == 0)
+                // 마지막 웨이브: 시간 제한 없이 필드가 빌 때까지. 보스 스테이지는 보스를 잡아야 끝난다
+                if (!BossAtEnd && allOut && _cb.MobCount() == 0)
                 {
                     _done = true;
                     _cb.RoundClear(Round);

@@ -125,7 +125,7 @@ namespace TowerDefense.Game
                 Remove(e);
                 if (m.IsBoss)
                 {
-                    // ponytail: 보스 스테이지 규칙 확정 전 임시 — 보스를 놓치면 실패
+                    // 보스가 도착점에 닿으면 실패 (docs/STAGE.md 보스 스테이지)
                     GameOver(false, "보스가 도착했습니다");
                     return;
                 }
@@ -230,7 +230,7 @@ namespace TowerDefense.Game
         }
 
         public void Defeat(string reason) => GameOver(false, reason);
-        public void Victory() => GameOver(true, $"{Wave.WaveCount}웨이브 방어 성공");
+        public void Victory() => GameOver(true, Wave.BossAtEnd ? "보스 처치" : $"{Wave.WaveCount}웨이브 방어 성공");
 
         private void GameOver(bool win, string reason)
         {

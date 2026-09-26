@@ -172,8 +172,8 @@ namespace TowerDefense.Core
             20 => new BossDef { Name = "장갑 수송차", HpMul = 20, ArmorMul = 2.0f, Speed = 45, Trait = "높은 방어력 — 마법/방깎 추천" },
             30 => new BossDef { Name = "스텔스 헬기", HpMul = 35, ArmorMul = 1.5f, Speed = 62, Trait = "빠르고 단단함" },
             40 => new BossDef { Name = "시티 브레이커", HpMul = 30, ArmorMul = 2.0f, Speed = 40, Trait = "최종 보스" },
-            // ponytail: 보스 스테이지 기획 전 임시 — 15웨이브 보스
-            15 => new BossDef { Name = "스테이지 보스", HpMul = 20, ArmorMul = 1.0f, Speed = 55, Trait = "놓치면 실패" },
+            // 보스 스테이지 15웨이브 보스: 크고(2.2배) 느리고 HP가 많다. ponytail: 수치는 테스트 플레이로 조정
+            15 => new BossDef { Name = "스테이지 보스", HpMul = 20, ArmorMul = 1.0f, Speed = 55, Trait = "도착하기 전에 잡아야 클리어" },
             _ => new BossDef { Name = "야근의 화신", HpMul = 24, ArmorMul = 1.5f, Speed = 50, Trait = "무한 모드" },
         };
 

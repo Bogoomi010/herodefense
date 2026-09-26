@@ -90,13 +90,22 @@ namespace TowerDefense.Tests
         }
 
         [Test]
-        public void Wave_BossStage_SpawnsSingleBossOnLastWave()
+        public void Wave_BossStage_CreepsAndOneBoss_ClearsOnlyByKillingBoss()
         {
             var f = new FakeField();
             var w = new WaveSystem(f, waveCount: 2, mobsPerWave: 3, bossAtEnd: true);
             Run(w, 120_000f);
-            Assert.AreEqual(1, f.BossSpawned);
-            Assert.AreEqual(4, f.Spawned, "3 + 보스 1");
+            Assert.AreEqual(1, f.BossSpawned, "보스 1기");
+            Assert.AreEqual(3 + 3 + 1, f.Spawned, "마지막 웨이브는 크립 3 + 보스 1");
+
+            f.Alive = 0; // 보스를 못 잡았는데 필드만 비어도
+            w.Update(100f);
+            Assert.IsFalse(f.Won, "보스를 잡아야만 클리어");
+
+            f.Alive = 2; // 크립이 남아 있어도
+            w.NotifyBossKilled();
+            Assert.IsTrue(f.Won, "보스를 잡는 즉시 클리어");
+            Assert.IsTrue(w.Done);
         }
 
         [Test]
