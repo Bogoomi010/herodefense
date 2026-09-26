@@ -296,15 +296,18 @@ namespace TowerDefense.Game
             }
         }
 
-        /// <summary>폭발 넉백: center 반경 radius 안 크립이 바깥으로 날아간다. 중심에 가까울수록 세게(가장자리에서 절반).</summary>
-        public void Explode(Vector3 center, float radius, float force)
+        /// <summary>
+        /// 폭발 넉백: center 반경 radius 안 크립이 바깥으로 날아간다. 중심에 가까울수록 세게(가장자리에서 절반).
+        /// landStunMs &gt; 0이면 뒤집혀 떨어지고 착지 순간부터 스턴 (영웅 강림).
+        /// </summary>
+        public void Explode(Vector3 center, float radius, float force, float landStunMs = 0f)
         {
             foreach (var e in _enemies)
             {
                 var p = e.transform.position;
                 float d = Vector2.Distance(new Vector2(p.x, p.z), new Vector2(center.x, center.z));
                 if (d > radius) continue;
-                e.Knockback(center, force * (1f - 0.5f * d / radius));
+                e.Knockback(center, force * (1f - 0.5f * d / radius), landStunMs);
             }
         }
 

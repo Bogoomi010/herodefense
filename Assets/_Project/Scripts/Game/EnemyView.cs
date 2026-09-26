@@ -10,6 +10,7 @@ namespace TowerDefense.Game
     /// - 길: 경로 진행 거리(State.Dist) + 옆 위치(Lateral)로 길 폭 안에서 무리 지어 흐른다. 서로 밀어내기는 세션이 한다.
     /// - 공중: 넉백으로 날아가는 중 (포물선, 길 밖까지 가능). 보스는 날아가지 않는다.
     /// - 복귀: 착지한 뒤 가장 가까운 길로 걸어 돌아와 길 이동을 잇는다.
+    /// - 뒤집힘: 착지 스턴이 걸린 넉백(영웅 강림)은 공중에서 뒤집혀 떨어지고, 착지하는 순간부터 스턴. 스턴이 끝나면 바로 일어나 길로 돌아간다.
     /// </summary>
     public sealed class EnemyView : MonoBehaviour
     {
@@ -32,10 +33,22 @@ namespace TowerDefense.Game
         private float _launchDist; // 날아가기 전 진행 거리 — 복귀는 이 근처 길로
         /// <summary>복귀 지점을 찾는 범위: 날아가기 전 진행 거리 앞뒤 (m)</summary>
         private const float ReturnWindow = 3f;
+        private float _landStunMs;   // 착지하는 순간 걸 스턴 (0이면 뒤집히지 않는다)
+        private bool _flipped;       // 뒤집혀 누워 있는 중 (공중 포함)
+        private float _roll;         // 앞뒤 축 기울기 (도). 180 = 뒤집힘
+        private Quaternion _yaw = Quaternion.identity;
+        private const float FlipSpeed = 540f, RightSpeed = 1440f; // 뒤집힘 / 일어남 (도/초)
 
         private PathFollower _path;
         private float _yOffset;
         private readonly List<(Renderer r, int slot)> _tint = new List<(Renderer, int)>();
+        private readonly List<(Renderer r, int slot)> _allSlots = new List<(Renderer, int)>();
+        // 피격 번쩍임: HP가 줄면 몸 전체가 잠깐 빨개진다. 독처럼 매 프레임 줄어드는 피해는 FlashGap마다 한 번씩 깜빡인다
+        private const float FlashSec = 0.12f, FlashGap = 0.35f;
+        private static readonly Color FlashColor = new Color(1f, 0.12f, 0.1f);
+        private static MaterialPropertyBlock _clearMpb;
+        private float _lastHp, _flashUntil, _nextFlashAt;
+        private bool _flashing;
         private MaterialPropertyBlock _mpb;
         private Color _baseColor;
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -59,6 +72,7 @@ namespace TowerDefense.Game
             GameObject go;
             float yOffset;
             var tint = new List<(Renderer, int)>();
+            var all = new List<(Renderer, int)>();
             float height = BaseHeight * state.Scale;
 
             if (prefab != null)
@@ -73,7 +87,10 @@ namespace TowerDefense.Game
                     if (first) { b = r.bounds; first = false; } else b.Encapsulate(r.bounds);
                     var mats = r.sharedMaterials;
                     for (int i = 0; i < mats.Length; i++)
+                    {
+                        all.Add((r, i));
                         if (mats[i] != null && mats[i].name.Contains("Wool")) tint.Add((r, i));
+                    }
                 }
                 float modelH = Mathf.Max(0.01f, b.size.y);
                 go.transform.localScale = Vector3.one * (height / modelH);
@@ -89,17 +106,20 @@ namespace TowerDefense.Game
                 var col = go.GetComponent<Collider>();
                 if (col != null) Object.Destroy(col); // 물리 불필요 — 타워는 거리로 판정
                 tint.Add((go.GetComponent<Renderer>(), 0));
+                all.Add((go.GetComponent<Renderer>(), 0));
                 yOffset = s; // 캡슐 중심을 발밑에서 반높이만큼 올린다
             }
 
             var view = go.AddComponent<EnemyView>();
             view._session = session;
-            view.Init(state, session.Path, yOffset, tint);
+            view.Init(state, session.Path, yOffset, tint, all);
             return view;
         }
 
-        private void Init(MobState state, PathFollower path, float yOffset, List<(Renderer, int)> tint)
+        private void Init(MobState state, PathFollower path, float yOffset, List<(Renderer, int)> tint, List<(Renderer, int)> all)
         {
+            _allSlots.AddRange(all);
+            _lastHp = state.Hp;
             State = state;
             _path = path;
             _yOffset = yOffset;
@@ -119,15 +139,24 @@ namespace TowerDefense.Game
             switch (Mode)
             {
                 case Move.Path: TickPath(nowMs, deltaMs, speedMul, dt); break;
-                case Move.Air: TickAir(dt); break;
+                case Move.Air: TickAir(nowMs, dt); break;
                 case Move.Return: TickReturn(nowMs, speedMul, dt); break;
             }
             Place(dt);
+            if (State.Hp < _lastHp - 1e-3f && Time.time >= _nextFlashAt)
+            {
+                _flashUntil = Time.time + FlashSec;
+                _nextFlashAt = Time.time + FlashGap;
+            }
+            _lastHp = State.Hp;
             ApplyColor(Mathf.Clamp01(State.Hp / State.MaxHp));
         }
 
-        /// <summary>폭발에 맞아 from에서 바깥쪽으로 날아간다. force = 수평 초기 속도(m/s). 보스는 무시.</summary>
-        public void Knockback(Vector3 from, float force)
+        /// <summary>
+        /// 폭발에 맞아 from에서 바깥쪽으로 날아간다. force = 수평 초기 속도(m/s). 보스는 무시.
+        /// landStunMs &gt; 0이면 공중에서 뒤집히고, 착지하는 순간 그만큼 스턴 (docs/HERO.md 강림 효과).
+        /// </summary>
+        public void Knockback(Vector3 from, float force, float landStunMs = 0f)
         {
             if (State.IsBoss || State.Dead || force <= 0f) return;
             var dir = _feet - from;
@@ -136,6 +165,9 @@ namespace TowerDefense.Game
             dir.Normalize();
             _vel = dir * force + Vector3.up * force * 0.8f;
             if (Mode == Move.Path) _launchDist = DistWorld; // 이미 날아가는 중이면 처음 자리 기준 유지
+            if (Mode != Move.Air) _landStunMs = 0f;
+            _landStunMs = Mathf.Max(_landStunMs, landStunMs);
+            _flipped |= _landStunMs > 0f;
             Mode = Move.Air;
         }
 
@@ -154,7 +186,7 @@ namespace TowerDefense.Game
             _feet.y = _session.GroundY(_feet); // 길 가장자리 경사를 따라
         }
 
-        private void TickAir(float dt)
+        private void TickAir(float nowMs, float dt)
         {
             _vel.y -= Gravity * dt;
             _feet += _vel * dt;
@@ -164,11 +196,15 @@ namespace TowerDefense.Game
             _feet.y = ground;
             (_returnDist, _returnLat) = _path.Closest(_feet, _launchDist - ReturnWindow, _launchDist + ReturnWindow);
             _returnLat = Mathf.Clamp(_returnLat, -_session.PathHalfWidth, _session.PathHalfWidth);
+            if (_landStunMs > 0f) State.ApplyStun(_landStunMs, nowMs);
+            _landStunMs = 0f;
             Mode = Move.Return;
         }
 
         private void TickReturn(float nowMs, float speedMul, float dt)
         {
+            if (State.IsStunned(nowMs)) return; // 아래 최저 속도(1m/s)가 스턴을 뚫지 않게
+            _flipped = false; // 스턴이 끝나면 바로 일어나 돌아간다
             var target = _path.PosAt(_returnDist, _returnLat);
             float speed = Mathf.Max(1f, State.CurrentSpeed(nowMs, speedMul) * GameConfig.PxToWorld);
             var flat = new Vector3(target.x - _feet.x, 0f, target.z - _feet.z);
@@ -196,15 +232,35 @@ namespace TowerDefense.Game
             move.y = 0f;
             var face = Mode == Move.Path ? _path.DirAt(DistWorld) : move;
             face.y = 0f;
-            if (face.sqrMagnitude > 1e-6f)
+            if (face.sqrMagnitude > 1e-6f && !(_flipped && Mode != Move.Air))
             {
                 var want = Quaternion.LookRotation(face.normalized, Vector3.up);
-                transform.rotation = dt > 0f ? Quaternion.Slerp(transform.rotation, want, 1f - Mathf.Exp(-10f * dt)) : want;
+                _yaw = dt > 0f ? Quaternion.Slerp(_yaw, want, 1f - Mathf.Exp(-10f * dt)) : want;
             }
+
+            // 뒤집힘: 앞뒤 축으로 굴러 누웠다가 일어난다. 발밑 원점 모델은 뒤집히면 땅에 묻히므로 몸 높이만큼 올린다
+            _roll = Mathf.MoveTowards(_roll, _flipped ? 180f : 0f, (_flipped ? FlipSpeed : RightSpeed) * dt);
+            if (dt <= 0f) _roll = _flipped ? 180f : 0f;
+            if (_yOffset <= 0f) transform.position = pos + Vector3.up * (BaseHeight * State.Scale * (1f - Mathf.Cos(_roll * Mathf.Deg2Rad)) * 0.5f);
+            transform.rotation = _yaw * Quaternion.Euler(0f, 0f, _roll);
         }
 
         private void ApplyColor(float hpRatio)
         {
+            if (Time.time < _flashUntil)
+            {
+                _mpb.SetColor(BaseColorId, FlashColor);
+                foreach (var (r, slot) in _allSlots) r.SetPropertyBlock(_mpb, slot);
+                _flashing = true;
+                return;
+            }
+            if (_flashing)
+            {
+                // 번쩍임 끝: 틴트하지 않는 슬롯은 덮어쓴 색을 지워 머티리얼 원래 색으로
+                _clearMpb ??= new MaterialPropertyBlock();
+                foreach (var (r, slot) in _allSlots) r.SetPropertyBlock(_clearMpb, slot);
+                _flashing = false;
+            }
             // HP가 줄수록 어두워진다 (피격 피드백)
             var c = Color.Lerp(_baseColor * 0.35f, _baseColor, 0.4f + 0.6f * hpRatio);
             c.a = 1f;

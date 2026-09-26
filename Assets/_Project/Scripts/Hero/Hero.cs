@@ -38,9 +38,25 @@ namespace TowerDefense.Hero
         [Tooltip("넉백 세기 (날아가는 수평 초기 속도 m/s)")]
         public float knockForce = 9f;
 
-        [Header("강림")]
-        public float descendDuration = 0.7f;
-        public float descendArcHeight = 4f;
+        [Header("강림 효과 (docs/HERO.md)")]
+        [Tooltip("착지 지점 중심, 이 반경(m) 안 크립에게 스턴 + 에어본")]
+        public float impactRadius = 5f;
+        [Tooltip("에어본 세기 (수평 초기 속도 m/s, 가장자리는 절반). 날아가는 거리는 세기²에 비례 — 11 ≈ 투석기(9)의 1.5배 거리")]
+        public float impactForce = 11f;
+        [Tooltip("스턴 시간(초). 날아간 크립은 뒤집혀 떨어진 순간부터, 날아가지 않는 보스는 강림 순간부터 절반")]
+        public float impactStunSec = 1f;
+
+        [Header("강림 궤적 (운석: 솟구침 → 정점 → 내리꽂힘)")]
+        [Tooltip("절벽에서 정점까지 솟구치는 시간(초). 처음엔 빠르고 정점에서 느려진다")]
+        public float riseSec = 0.45f;
+        [Tooltip("정점에서 잠깐 멈추는 시간(초)")]
+        public float hangSec = 0.1f;
+        [Tooltip("정점에서 착지까지 내리꽂는 시간(초). 갈수록 빨라진다")]
+        public float slamSec = 0.22f;
+        [Tooltip("정점 높이: 절벽·착지점 중 높은 쪽보다 이만큼(m) 위")]
+        public float apexHeight = 18f;
+        [Tooltip("정점을 착지점에서 절벽 쪽으로 이만큼(m) 물린다 — 수직 낙하 대신 비스듬히 꽂히게")]
+        public float slamBack = 6f;
         [Tooltip("귀환한 뒤 이 시간이 지나야 다시 강림할 수 있다 (플레이어 스킬로 단축)")]
         public float descendCooldownSec = 20f;
         /// <summary>다시 강림할 수 있을 때까지 남은 시간(초). Perched가 아니면 0.</summary>
@@ -113,6 +129,7 @@ namespace TowerDefense.Hero
                 case HeroState.Descending: TickDescending(); break;
                 case HeroState.Active: TickActive(); break;
             }
+            TickShock();
         }
 
         private void TickPerched()
@@ -134,25 +151,100 @@ namespace TowerDefense.Hero
             if (Mouse.current.leftButton.wasPressedThisFrame) Descend(hit.point);
         }
 
+        /// <summary>강림 정점: 착지점 위 높은 곳, 절벽 쪽으로 조금 물러난 자리.</summary>
+        private Vector3 Apex
+        {
+            get
+            {
+                var back = _descendFrom - _descendTo;
+                back.y = 0f;
+                back = back.sqrMagnitude > 0.0001f ? back.normalized * slamBack : Vector3.zero;
+                return new Vector3(_descendTo.x + back.x, Mathf.Max(_descendFrom.y, _descendTo.y) + apexHeight, _descendTo.z + back.z);
+            }
+        }
+
+        /// <summary>
+        /// 운석 강림 (docs/HERO_DESCENT.md): ① 솟구침 — 수평은 부드럽게, 높이는 빠르게 올라 정점에서 느려짐
+        /// ② 정점에서 잠깐 멈춤 ③ 내리꽂힘 — 가속(세제곱)하며 비스듬히 착지. 착지 순간 강림 효과·충격파.
+        /// </summary>
         private void TickDescending()
         {
-            _descendT += Time.deltaTime / Mathf.Max(0.0001f, descendDuration);
-            float t = Mathf.Clamp01(_descendT);
-
-            var pos = Vector3.Lerp(_descendFrom, _descendTo, t);
-            pos.y += Mathf.Sin(t * Mathf.PI) * descendArcHeight;
+            _descendT += Time.deltaTime;
+            var apex = Apex;
+            Vector3 pos;
+            if (_descendT < riseSec)
+            {
+                float u = _descendT / riseSec;
+                pos = Vector3.Lerp(_descendFrom, apex, Mathf.SmoothStep(0f, 1f, u));
+                pos.y = Mathf.Lerp(_descendFrom.y, apex.y, 1f - (1f - u) * (1f - u));
+            }
+            else if (_descendT < riseSec + hangSec) pos = apex;
+            else
+            {
+                float u = Mathf.Clamp01((_descendT - riseSec - hangSec) / Mathf.Max(0.0001f, slamSec));
+                pos = Vector3.Lerp(apex, _descendTo, u * u * u);
+            }
             transform.position = pos;
 
             var dir = _descendTo - _descendFrom;
             dir.y = 0f;
             if (dir.sqrMagnitude > 0.0001f) transform.rotation = Quaternion.LookRotation(dir.normalized);
 
-            if (t >= 1f)
+            if (_descendT >= riseSec + hangSec + slamSec)
             {
                 SnapToGround(_descendTo);
                 _activeSince = Time.time;
-                SetState(HeroState.Active);
+                SetState(HeroState.Active); // HeroCamera가 이 순간 흔들린다
+                Impact(transform.position);
+                Shockwave(transform.position);
             }
+        }
+
+        // ---------- 착지 충격파: 바닥 원이 강림 지역 끝까지 퍼지며 사라진다 ----------
+
+        private const float ShockSec = 0.3f;
+        private LineRenderer _shock;
+        private float _shockT = -1f;
+
+        private void Shockwave(Vector3 at)
+        {
+            if (_shock == null) _shock = TowerDefense.Game.Rings.Circle(null, markerColor, 0.35f);
+            _shock.transform.position = at + Vector3.up * 0.1f;
+            _shock.gameObject.SetActive(true);
+            _shockT = 0f;
+        }
+
+        private void TickShock()
+        {
+            if (_shockT < 0f || _shock == null) return;
+            _shockT += Time.deltaTime;
+            float u = _shockT / ShockSec;
+            if (u >= 1f) { _shock.gameObject.SetActive(false); _shockT = -1f; return; }
+            TowerDefense.Game.Rings.SetRadius(_shock, Mathf.Lerp(0.5f, impactRadius, 1f - (1f - u) * (1f - u)));
+            _shock.widthMultiplier = 1f - u;
+        }
+
+        /// <summary>
+        /// 강림 효과 (docs/HERO.md): 착지 반경 안 크립에게 강림 피해(스킬로 얻음, 기본 0) → 바깥으로 에어본(피해 없음).
+        /// 날아간 크립은 뒤집혀 떨어지고 착지 순간부터 스턴, 끝나면 바로 길로 돌아간다.
+        /// 보스는 날아가지 않고(Knockback이 보스를 무시) 강림 순간 스턴 절반.
+        /// </summary>
+        private void Impact(Vector3 center)
+        {
+            if (session == null || session.Over) return;
+            float dmg = session.Bonuses.DescentDamage, now = session.GameTimeMs, r2 = impactRadius * impactRadius;
+            var list = session.Enemies;
+            // 거꾸로 돈다: 피해로 죽은 크립은 목록에서 빠지고, 분열 자식은 끝에 붙는다(이번 충격 대상 아님)
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                if (i >= list.Count) continue;
+                var e = list[i];
+                var p = e.transform.position;
+                if ((p.x - center.x) * (p.x - center.x) + (p.z - center.z) * (p.z - center.z) > r2) continue;
+                if (dmg > 0f && session.Damage(e, dmg, dmgType)) continue;
+                if (e.State.IsBoss) e.State.ApplyStun(impactStunSec * 1000f * 0.5f, now);
+            }
+            session.Explode(center, impactRadius, impactForce, impactStunSec * 1000f);
         }
 
         private void TickActive()

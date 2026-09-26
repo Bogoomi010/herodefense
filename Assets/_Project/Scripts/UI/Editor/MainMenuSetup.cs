@@ -12,7 +12,7 @@ namespace TowerDefense.UI.Editor
         private const string PanelSettingsPath = "Assets/_Project/UI/MainMenuPanelSettings.asset";
         private const string UxmlPath = "Assets/_Project/UI/MainMenu.uxml";
         private const string ScenePath = "Assets/_Project/Scenes/MainMenu.unity";
-        private const string DefaultThemePath = "Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss";
+        private const string DefaultThemePath = "Assets/_Project/UI/Themes/UnityDefaultRuntimeTheme.tss";
 
         [MenuItem("TowerDefense/Setup Main Menu Scene")]
         public static void Setup()
