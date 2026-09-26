@@ -8,11 +8,17 @@ namespace TowerDefense.Game
 {
     /// <summary>
     /// 포탑 설치 모드 (docs/TOWER_PLACEMENT.md). 절벽 시점에서만: B 또는 HUD 버튼으로 켜고, 좌클릭 설치, 우클릭·ESC로 끈다.
+    /// 종류는 1~4 키나 HUD 버튼으로 고른다. 이번 스테이지에 해금된 종류만 (docs/TOWER_TYPES.md).
     /// 커서를 따라 미리보기와 구역 원을 보여 준다 (설치 가능 초록 / 불가 빨강). 기존 포탑의 구역도 함께 보인다.
     /// </summary>
     public sealed class TowerPlacer : MonoBehaviour
     {
-        public TowerSpec spec = new TowerSpec();
+        public List<TowerSpec> specs = TowerSpec.Defaults();
+        public int selected;
+
+        /// <summary>지금 고른 종류</summary>
+        public TowerSpec Selected => specs[Mathf.Clamp(selected, 0, specs.Count - 1)];
+        public bool IsUnlocked(int i) => i >= 0 && i < specs.Count && specs[i].IsUnlocked(_session != null ? _session.Stage : 1);
         [Tooltip("포탑 모델 (발밑 원점). 비우면 큐브")]
         public GameObject towerPrefab;
 
@@ -20,7 +26,7 @@ namespace TowerDefense.Game
         public PlaceResult LastResult { get; private set; }
 
         /// <summary>이번 스테이지의 포탑 구역 반지름 (기준값 × 스킬 배율, 하한 바닥 반지름)</summary>
-        public float ZoneRadius => PlacementRules.ZoneRadius(spec.zoneRadius, _session.Bonuses.ZoneMul, spec.footprintRadius);
+        public float ZoneRadius => PlacementRules.ZoneRadius(Selected.zoneRadius, _session.Bonuses.ZoneMul, Selected.footprintRadius);
 
         private EnemySpawner _session;
         private TileMap _map;
@@ -41,11 +47,21 @@ namespace TowerDefense.Game
 
         public void Toggle() => SetActive(!Active);
 
+        /// <summary>종류 고르기. 잠긴 종류는 무시. 설치 모드가 꺼져 있으면 켠다.</summary>
+        public void Select(int i)
+        {
+            if (!IsUnlocked(i)) return;
+            selected = i;
+            if (_ghostFoot != null) Rings.SetRadius(_ghostFoot, Selected.footprintRadius);
+            SetActive(true);
+        }
+
         public void SetActive(bool on)
         {
             on &= CanEnter;
             if (on == Active) return;
             Active = on;
+            if (on) Pick(null);
             if (_ghost == null) CreateGhost();
             _ghost.SetActive(false);
             foreach (var t in Tower.All) t.ShowZone(on, ZoneRadius);
@@ -55,7 +71,18 @@ namespace TowerDefense.Game
         {
             var kb = Keyboard.current;
             if (kb != null && kb.bKey.wasPressedThisFrame) Toggle();
-            if (!Active) return;
+            if (kb != null && CanEnter)
+            {
+                if (kb.digit1Key.wasPressedThisFrame) Select(0);
+                else if (kb.digit2Key.wasPressedThisFrame) Select(1);
+                else if (kb.digit3Key.wasPressedThisFrame) Select(2);
+                else if (kb.digit4Key.wasPressedThisFrame) Select(3);
+            }
+            if (!Active)
+            {
+                UpdatePick(kb);
+                return;
+            }
             if (!CanEnter || (kb != null && kb.escapeKey.wasPressedThisFrame) || Mouse.current == null || Mouse.current.rightButton.wasPressedThisFrame)
             {
                 SetActive(false);
@@ -82,13 +109,54 @@ namespace TowerDefense.Game
             if (Mouse.current.leftButton.wasPressedThisFrame) TryPlace(p);
         }
 
+        /// <summary>클릭해 고른 포탑 (사거리 원 + 테두리). 없으면 null.</summary>
+        public Tower Picked { get; private set; }
+
+        /// <summary>
+        /// 설치 모드가 아닐 때 (docs/INGAME_UI.md): 포탑을 좌클릭하면 고르고, 빈 곳 좌클릭·우클릭·ESC로 해제한다.
+        /// 영웅이 필드에 내려가면 해제한다. Ctrl+클릭은 영웅 강림이라 무시한다.
+        /// </summary>
+        private void UpdatePick(Keyboard kb)
+        {
+            var m = Mouse.current;
+            if (!CanEnter || m == null) { Pick(null); return; }
+            if (m.rightButton.wasPressedThisFrame || (kb != null && kb.escapeKey.wasPressedThisFrame)) { Pick(null); return; }
+            if (!m.leftButton.wasPressedThisFrame || (kb != null && (kb.leftCtrlKey.isPressed || kb.rightCtrlKey.isPressed))) return;
+            var mouse = m.position.ReadValue();
+            if (_session.IsOverHud(mouse) || _cam == null) return;
+            Pick(TowerAt(_cam.ScreenPointToRay(mouse)));
+        }
+
+        private void Pick(Tower t)
+        {
+            if (t == Picked) return;
+            if (Picked != null) Picked.SetSelected(false);
+            Picked = t;
+            if (t != null) t.SetSelected(true);
+        }
+
+        /// <summary>광선에 맞는 가장 가까운 포탑. 포탑에는 콜라이더가 없어(설치 레이캐스트가 지형에 닿도록) 메시 경계 상자로 판정한다.</summary>
+        public static Tower TowerAt(Ray ray)
+        {
+            Tower best = null;
+            float bestD = float.MaxValue;
+            foreach (var t in Tower.All)
+            {
+                foreach (var r in t.GetComponentsInChildren<MeshRenderer>())
+                {
+                    if (r.enabled && r.bounds.IntersectRay(ray, out float d) && d < bestD) { best = t; bestD = d; }
+                }
+            }
+            return best;
+        }
+
         /// <summary>지면 위 p에 설치를 시도한다. 판정을 통과하면 골드를 내고 포탑을 만든다.</summary>
         public PlaceResult TryPlace(Vector3 p)
         {
             var r = Check(p);
             if (r != PlaceResult.Ok) return r;
-            if (!_session.Economy.TrySpend(spec.cost, GoldSource.TowerBuild)) return PlaceResult.NoGold;
-            var t = Tower.Create(_session, spec, p, towerPrefab);
+            if (!_session.Economy.TrySpend(Selected.cost, GoldSource.TowerBuild)) return PlaceResult.NoGold;
+            var t = Tower.Create(_session, Selected, p, towerPrefab);
             t.ShowZone(Active, ZoneRadius);
             return r;
         }
@@ -99,7 +167,7 @@ namespace TowerDefense.Game
             foreach (var t in FieldTree.All) trees.Add(t.Footprint);
             var towers = new List<Circle>();
             foreach (var t in Tower.All) towers.Add(new Circle(t.Position.x, t.Position.z, 0f));
-            return PlacementRules.Check(p.x, p.z, spec.footprintRadius, ZoneRadius, _session.Gold, spec.cost,
+            return PlacementRules.Check(p.x, p.z, Selected.footprintRadius, ZoneRadius, _session.Gold, Selected.cost,
                 (x, z) => _map.IsGround(new Vector3(x, 0f, z)), trees, towers);
         }
 
@@ -109,7 +177,7 @@ namespace TowerDefense.Game
             _ghost.transform.SetParent(transform, false);
             _ghostZone = Rings.Circle(_ghost.transform, Ok, 0.15f);
             _ghostFoot = Rings.Circle(_ghost.transform, Ok, 0.25f);
-            Rings.SetRadius(_ghostFoot, spec.footprintRadius);
+            Rings.SetRadius(_ghostFoot, Selected.footprintRadius);
         }
 
         public static string Describe(PlaceResult r) => r switch

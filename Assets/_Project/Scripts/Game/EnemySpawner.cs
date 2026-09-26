@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using TowerDefense.Core;
 using TowerDefense.Map;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
 namespace TowerDefense.Game
@@ -104,6 +105,8 @@ namespace TowerDefense.Game
             if (Over) return;
             float d = Time.deltaTime * 1000f * timeScale;
             GameTimeMs += d;
+            var kb = Keyboard.current;
+            if (kb != null && kb.spaceKey.wasPressedThisFrame) Wave.StartNow();
             Wave.Update(d);
             if (Over) return;
 
@@ -355,7 +358,7 @@ namespace TowerDefense.Game
             float elapsed = GameTimeMs / 1000f;
             Stars = StageRules.Stars(win, Leaked, elapsed, Def.starTimeSec);
             var lines = new System.Text.StringBuilder();
-            lines.AppendLine($"{StarText(Stars)}   시간 {Clock(elapsed)} / 기준 {Clock(Def.starTimeSec)}   통과한 크립 {Leaked}");
+            lines.AppendLine($"{StarText(Stars)}   시간 {Clock(elapsed)} / 기준 {Clock(Def.starTimeSec)}   처치 {Kills}   통과한 크립 {Leaked}");
 
             if (!_recordable)
             {
@@ -389,45 +392,103 @@ namespace TowerDefense.Game
         private static string StarText(int n) => new string('★', n) + new string('☆', 3 - n);
         private static string Clock(float sec) => $"{(int)sec / 60}:{(int)sec % 60:00}";
 
-        // ---------- HUD ----------
-
-        private static readonly Rect HudRect = new Rect(10, 10, 520, 200);
+        // ---------- HUD (docs/INGAME_UI.md) ----------
 
         /// <summary>마우스(스크린 좌표, 좌하단 원점)가 HUD 위에 있는가 — HUD 클릭이 설치 클릭으로 새지 않게.</summary>
-        public bool IsOverHud(Vector2 mouse) => showHud && HudRect.Contains(new Vector2(mouse.x, Screen.height - mouse.y));
+        public bool IsOverHud(Vector2 mouse)
+        {
+            if (!showHud) return false;
+            var p = new Vector2(mouse.x, Screen.height - mouse.y);
+            return Hud.TopLeft.Contains(p) || Hud.TopRight.Contains(p) || Hud.BottomBar.Contains(p) || Hud.HeroBox.Contains(p);
+        }
+
+        /// <summary>남은 크립: 필드에 있는 크립 + 이번 웨이브에서 아직 나오지 않은 크립. 보스도 하나로 센다.</summary>
+        public int CreepsLeft => _enemies.Count + (Wave != null ? Wave.ToSpawn : 0);
 
         // ponytail: 베타 HUD는 IMGUI. 레이아웃이 확정되면 UI Toolkit으로 옮긴다
         private void OnGUI()
         {
             if (!showHud || Wave == null) return;
-            var style = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold };
-            style.normal.textColor = Color.white;
-            var btn = new GUIStyle(GUI.skin.button) { fontSize = 16 };
-            GUI.Box(HudRect, GUIContent.none);
-            GUILayout.BeginArea(new Rect(HudRect.x + 10, HudRect.y + 6, HudRect.width - 20, HudRect.height - 10));
-            string state = Wave.State == WaveSystem.WaveState.Break ? "휴식" : "진행";
-            string wave = Wave.IsLastWave ? "(마지막)" : $"[{state}] {Wave.TimeLeftSec}s";
-            GUILayout.Label($"스테이지 {Stage}{(Wave.BossAtEnd ? " 보스" : "")}  웨이브 {Wave.Round}/{Wave.WaveCount}  {wave}", style);
-            int streak = Economy.StreakAt(GameTimeMs);
-            GUILayout.Label($"몹 {_enemies.Count}  처치 {Kills}  진입 {Leaked}  데스 {Death}  골드 {Gold}" +
-                            (streak >= Events.StreakMin ? $"  🔥{streak}" : ""), style);
-            GUILayout.Label($"Lv {Profile.level}  경과 {Clock(GameTimeMs / 1000f)} / 별 기준 {Clock(Def.starTimeSec)}  ×{timeScale:0.#}", style);
-            if (GameTimeMs < _messageUntil) GUILayout.Label(LastMessage, style);
+            var btn = new GUIStyle(GUI.skin.button) { fontSize = 15, richText = true };
+            DrawTopBar(btn);
+            if (Over) { DrawSettlement(Hud.Text(20), new GUIStyle(GUI.skin.button) { fontSize = 16 }); return; }
+            if (!HeroInField) DrawTowerBar(btn);
+        }
 
-            GUILayout.BeginHorizontal();
-            if (Placer != null)
+        /// <summary>위 줄: 왼쪽 자원, 가운데 별, 오른쪽 배속·다음 웨이브. 두 시점 공통.</summary>
+        private void DrawTopBar(GUIStyle btn)
+        {
+            var big = Hud.Text(18);
+            var r = Hud.TopLeft;
+            Hud.Panel(r);
+            string boss = Wave.BossAtEnd && Wave.IsLastWave ? " 보스" : "";
+            GUI.Label(new Rect(r.x + 12, r.y, r.width - 24, r.height),
+                $"<color={Hud.Hex(Hud.Gold)}>G</color> {Gold}     <color={Hud.Hex(Hud.Bad)}>♥</color> {Death}     웨이브 {Wave.Round}/{Wave.WaveCount}{boss}     크립 {CreepsLeft}", big);
+
+            // 별: 지금 클리어하면 받을 별. 크립 통과·기준 시간 초과로 하나씩 꺼진다 (docs/STAGE.md)
+            float elapsed = GameTimeMs / 1000f;
+            int stars = StageRules.Stars(true, Leaked, elapsed, Def.starTimeSec);
+            r = Hud.TopCenter;
+            Hud.Panel(r);
+            GUI.Label(r, $"<color={Hud.Hex(Hud.Gold)}>{new string('★', stars)}</color><color={Hud.Hex(Hud.Dim)}>{new string('★', 3 - stars)}</color>   " +
+                         $"<size=14>{Clock(elapsed)} / {Clock(Def.starTimeSec)}</size>", Hud.Text(20, TextAnchor.MiddleCenter));
+            if (GameTimeMs < _messageUntil)
             {
-                GUI.enabled = Placer.CanEnter;
-                string label = Placer.Active ? $"설치 중: {TowerPlacer.Describe(Placer.LastResult)} (우클릭 취소)" : $"포탑 설치 {Placer.spec.cost}G (B)";
-                if (GUILayout.Button(label, btn, GUILayout.Height(30))) Placer.Toggle();
-                GUI.enabled = true;
+                var m = new Rect(Screen.width / 2f - 300, r.yMax + 8, 600, 32);
+                Hud.Panel(m, 0.6f);
+                GUI.Label(m, LastMessage, Hud.Text(16, TextAnchor.MiddleCenter));
+            }
+
+            r = Hud.TopRight;
+            Hud.Panel(HeroInField ? r : new Rect(r.x, r.y, r.width, 76));
+            float x = r.x + 10, y = r.y + 8;
+            foreach (float s in new[] { 1f, 2f })
+            {
+                string t = Mathf.Approximately(timeScale, s) ? $"<color={Hud.Hex(Hud.Gold)}>{s:0}×</color>" : $"{s:0}×";
+                if (GUI.Button(new Rect(x, y, 44, 28), t, btn)) timeScale = s;
+                x += 48;
             }
             // ponytail: 베타 테스트용 — 15웨이브를 다 돌지 않고 정산을 보려고 (실패로 처리)
-            if (!Over && GUILayout.Button("스테이지 종료", btn, GUILayout.Width(120), GUILayout.Height(30))) GameOver(false, "스테이지 종료");
-            GUILayout.EndHorizontal();
-            GUILayout.EndArea();
+            if (!Over && GUI.Button(new Rect(r.xMax - 100, y, 90, 28), "종료", btn)) GameOver(false, "스테이지 종료");
 
-            if (Over) DrawSettlement(style, btn);
+            var small = Hud.Text(15);
+            y += 34;
+            if (Wave.State == WaveSystem.WaveState.Break && !Wave.Done)
+            {
+                string next = Wave.IsBossRound(Wave.Round + 1) ? " 보스" : "";
+                GUI.Label(new Rect(r.x + 10, y, 180, 28), $"다음 웨이브 {Wave.Round + 1}{next} · {Wave.TimeLeftSec}초", small);
+                if (GUI.Button(new Rect(r.xMax - 160, y, 150, 28), "지금 시작 (Space)", btn)) Wave.StartNow();
+            }
+            else GUI.Label(new Rect(r.x + 10, y, r.width - 20, 28), Wave.IsLastWave ? "마지막 웨이브" : $"웨이브 진행 중 · {Wave.TimeLeftSec}초", small);
+            y += 32;
+            if (HeroInField) GUI.Label(new Rect(r.x + 10, y, r.width - 20, 24), $"<color={Hud.Hex(Hud.Bad)}>절벽 비움 · 포탑 설치 불가</color>", small);
+        }
+
+        /// <summary>절벽 시점 아래 줄: 포탑 종류 1~4. 잠긴 종류는 해금 스테이지, 골드가 모자라면 비용을 빨갛게.</summary>
+        private void DrawTowerBar(GUIStyle btn)
+        {
+            if (Placer == null) return;
+            var r = Hud.BottomBar;
+            float w = (r.width - 6f * (Placer.specs.Count - 1)) / Placer.specs.Count;
+            for (int i = 0; i < Placer.specs.Count; i++)
+            {
+                var sp = Placer.specs[i];
+                var slot = new Rect(r.x + i * (w + 6f), r.y, w, r.height);
+                bool open = Placer.IsUnlocked(i);
+                string cost = Gold >= sp.cost ? $"{sp.cost}G" : $"<color={Hud.Hex(Hud.Bad)}>{sp.cost}G</color>";
+                string text = open ? $"{i + 1}  {sp.displayName.Replace(" 포탑", "")}\n{cost}" : $"<color={Hud.Hex(Hud.Dim)}>{i + 1}  잠김\n스테이지 {sp.unlockStage}</color>";
+                if (GUI.Button(slot, text, btn)) Placer.Select(i); // 잠긴 종류는 Select가 무시한다
+                if (open && i == Placer.selected) Hud.Frame(slot, Placer.Active ? Color.white : Hud.Dim);
+            }
+
+            string hint = Placer.Active
+                ? $"{Placer.Selected.displayName} 설치 · <color={Hud.Hex(Placer.LastResult == PlaceResult.Ok ? Hud.Good : Hud.Bad)}>{TowerPlacer.Describe(Placer.LastResult)}</color> · 우클릭 취소"
+                : "1~4 또는 B: 설치";
+            var hs = Hud.Text(15, TextAnchor.MiddleCenter);
+            float hw = hs.CalcSize(new GUIContent(hint)).x + 24f;
+            var hr = new Rect(Screen.width / 2f - hw / 2f, r.y - 32, hw, 26);
+            Hud.Panel(hr, 0.6f);
+            GUI.Label(hr, hint, hs);
         }
 
         private void DrawSettlement(GUIStyle style, GUIStyle btn)
@@ -446,6 +507,62 @@ namespace TowerDefense.Game
             if (GUILayout.Button("스테이지 선택", btn, GUILayout.Height(40))) StageFlow.LoadStageSelect();
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
+        }
+    }
+
+    /// <summary>인게임 HUD 공용 배치·그리기 (docs/INGAME_UI.md). 위치는 화면 크기에서 바로 계산한다 — 클릭 막기(IsOverHud)와 그리기가 같은 값을 쓴다.</summary>
+    public static class Hud
+    {
+        public const float Pad = 10f;
+        public static Rect TopLeft => new Rect(Pad, Pad, 470, 40);
+        public static Rect TopCenter => new Rect(Screen.width / 2f - 130, Pad, 260, 40);
+        public static Rect TopRight => new Rect(Screen.width - 350 - Pad, Pad, 350, 102);
+        public static Rect BottomBar => new Rect(Screen.width / 2f - 210, Screen.height - 64 - Pad, 420, 64);
+        public static Rect HeroBox => new Rect(Pad, Screen.height - 64 - Pad, 250, 64);
+
+        public static readonly Color Gold = new Color(0.98f, 0.78f, 0.46f), Dim = new Color(0.7f, 0.7f, 0.66f),
+            Bad = new Color(0.94f, 0.58f, 0.58f), Good = new Color(0.6f, 0.85f, 0.4f);
+
+        public static void Panel(Rect r, float alpha = 0.78f) => Fill(r, new Color(0.09f, 0.09f, 0.08f, alpha));
+
+        public static void Fill(Rect r, Color c)
+        {
+            var old = GUI.color;
+            GUI.color = c;
+            GUI.DrawTexture(r, Texture2D.whiteTexture);
+            GUI.color = old;
+        }
+
+        public static void Frame(Rect r, Color c, float w = 2f)
+        {
+            Fill(new Rect(r.x, r.y, r.width, w), c);
+            Fill(new Rect(r.x, r.yMax - w, r.width, w), c);
+            Fill(new Rect(r.x, r.y, w, r.height), c);
+            Fill(new Rect(r.xMax - w, r.y, w, r.height), c);
+        }
+
+        /// <summary>진행 막대 (t = 0~1)</summary>
+        public static void Bar(Rect r, float t, Color c)
+        {
+            Fill(r, new Color(0.27f, 0.27f, 0.25f));
+            Fill(new Rect(r.x, r.y, r.width * Mathf.Clamp01(t), r.height), c);
+        }
+
+        public static GUIStyle Text(int size, TextAnchor anchor = TextAnchor.MiddleLeft)
+        {
+            var s = new GUIStyle(GUI.skin.label) { fontSize = size, alignment = anchor, richText = true, wordWrap = false };
+            s.normal.textColor = Color.white;
+            return s;
+        }
+
+        public static string Hex(Color c) => "#" + ColorUtility.ToHtmlStringRGB(c);
+
+        /// <summary>월드 위치 → GUI 좌표(좌상단 원점). 카메라 뒤면 null.</summary>
+        public static Vector2? ToGui(Camera cam, Vector3 world)
+        {
+            if (cam == null) return null;
+            var p = cam.WorldToScreenPoint(world);
+            return p.z > 0f ? new Vector2(p.x, Screen.height - p.y) : (Vector2?)null;
         }
     }
 }

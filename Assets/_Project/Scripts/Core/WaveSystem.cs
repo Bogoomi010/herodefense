@@ -51,6 +51,15 @@ namespace TowerDefense.Core
 
         public bool IsBossRound(int r) => BossAtEnd && r == WaveCount;
 
+        /// <summary>이번 웨이브에서 아직 나오지 않은 크립 수 (보스 포함). 휴식 중이면 0.</summary>
+        public int ToSpawn => State == WaveState.Running && !_done ? System.Math.Max(0, MobsPerWave + (IsBossRound(Round) ? 1 : 0) - _spawned) : 0;
+
+        /// <summary>휴식 중이면 다음 웨이브를 지금 시작한다 (HUD "지금 시작").</summary>
+        public void StartNow()
+        {
+            if (State == WaveState.Break && !_done) _timer = 0f;
+        }
+
         /// <summary>보스 처치 → 필드에 크립이 남아 있어도 즉시 클리어.</summary>
         public void NotifyBossKilled()
         {

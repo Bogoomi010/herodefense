@@ -109,6 +109,22 @@ namespace TowerDefense.Tests
         }
 
         [Test]
+        public void Wave_StartNowAndToSpawn_CountsBoss()
+        {
+            var f = new FakeField();
+            var w = new WaveSystem(f, waveCount: 1, mobsPerWave: 3, bossAtEnd: true);
+            Assert.AreEqual(0, w.ToSpawn, "휴식 중에는 0");
+            w.StartNow();
+            w.Update(1f);
+            Assert.AreEqual(1, w.Round, "휴식을 건너뛰고 바로 시작");
+            Assert.AreEqual(4, w.ToSpawn, "크립 3 + 보스 1");
+            w.Update(1f);
+            Assert.AreEqual(3, w.ToSpawn, "보스가 먼저 나옴");
+            Run(w, 60_000f);
+            Assert.AreEqual(0, w.ToSpawn);
+        }
+
+        [Test]
         public void Difficulty_ScalesCount()
         {
             Assert.Less(MobDefs.DifficultyCountMul(Difficulty.Easy), 1f);

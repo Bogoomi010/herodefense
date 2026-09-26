@@ -44,8 +44,9 @@ namespace TowerDefense.Hero
         [Tooltip("귀환한 뒤 이 시간이 지나야 다시 강림할 수 있다 (플레이어 스킬로 단축)")]
         public float descendCooldownSec = 20f;
         /// <summary>다시 강림할 수 있을 때까지 남은 시간(초). Perched가 아니면 0.</summary>
-        public float DescendCooldownLeft => State == HeroState.Perched
-            ? Mathf.Max(0f, _returnedAt + descendCooldownSec * (session != null ? session.Bonuses.DescentCdMul : 1f) - Time.time) : 0f;
+        public float DescendCooldownLeft => State == HeroState.Perched ? Mathf.Max(0f, _returnedAt + DescendCooldownTotal - Time.time) : 0f;
+        /// <summary>스킬 배율을 적용한 강림 쿨타임(초)</summary>
+        public float DescendCooldownTotal => descendCooldownSec * (session != null ? session.Bonuses.DescentCdMul : 1f);
         private float _returnedAt = float.NegativeInfinity;
         [Header("귀환")]
         [Tooltip("강림 완료 후 이 시간이 지나야 T로 귀환할 수 있다")]
