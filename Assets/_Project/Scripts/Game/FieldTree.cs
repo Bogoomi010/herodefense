@@ -14,9 +14,9 @@ namespace TowerDefense.Game
         public static IReadOnlyList<FieldTree> All => _all;
 
         [Tooltip("포탑 설치를 막는 바닥 원 반지름 (m)")]
-        public float footprintRadius = 0.4f;
+        public float footprintRadius = 1f;
         [Tooltip("영웅 상호작용 반지름 (m)")]
-        public float interactRadius = 1.2f;
+        public float interactRadius = 3f;
         public float chopSec = 30f;
         [Tooltip("베었을 때 플레이어 경험치 (스킬 배율 적용 전)")]
         public int exp = 20;

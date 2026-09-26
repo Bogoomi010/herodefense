@@ -34,9 +34,9 @@ namespace TowerDefense.Hero
         public float cooldownSec = 0.4f;
         public TowerDefense.Core.DmgType dmgType = TowerDefense.Core.DmgType.Phys;
         [Tooltip("공격 지점 주변 크립을 날려 보내는 폭발 반경 (m) — docs/CREEP_MOVEMENT.md")]
-        public float knockRadius = 1.2f;
+        public float knockRadius = 3f;
         [Tooltip("넉백 세기 (날아가는 수평 초기 속도 m/s)")]
-        public float knockForce = 5f;
+        public float knockForce = 9f;
 
         [Header("강림")]
         public float descendDuration = 0.7f;

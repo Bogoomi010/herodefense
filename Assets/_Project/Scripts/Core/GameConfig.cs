@@ -24,8 +24,11 @@ namespace TowerDefense.Core
         /// <summary>황금 비둘기 스폰 확률 (스폰당)</summary>
         public const float GoldenChance = 0.0025f;
 
-        /// <summary>1 Unity 단위 = 50 px</summary>
-        public const float PxToWorld = 0.02f;
-        public const float WorldToPx = 50f;
+        /// <summary>
+        /// 1 Unity 단위(m) = 18.75 px. 2026-09-26 크기 기획(docs/SCALE.md)으로 맵 타일을 1.5m → 4m로 키우면서
+        /// 이전 값(50 px)에서 같은 배율(8/3)로 바꿨다 — 크립이 길을 건너는 시간, 사거리/맵 비율이 그대로 유지된다.
+        /// </summary>
+        public const float WorldToPx = 18.75f;
+        public const float PxToWorld = 1f / WorldToPx;
     }
 }

@@ -107,8 +107,8 @@ namespace TowerDefense.Game
         {
             _ghost = new GameObject("PlacementGhost");
             _ghost.transform.SetParent(transform, false);
-            _ghostZone = Rings.Circle(_ghost.transform, Ok, 0.05f);
-            _ghostFoot = Rings.Circle(_ghost.transform, Ok, 0.08f);
+            _ghostZone = Rings.Circle(_ghost.transform, Ok, 0.15f);
+            _ghostFoot = Rings.Circle(_ghost.transform, Ok, 0.25f);
             Rings.SetRadius(_ghostFoot, spec.footprintRadius);
         }
 

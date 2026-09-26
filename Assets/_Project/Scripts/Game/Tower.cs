@@ -17,15 +17,16 @@ namespace TowerDefense.Game
         [Header("설치")]
         public int cost = 50;
         [Tooltip("포탑이 차지하는 바닥 원 반지름 (m)")]
-        public float footprintRadius = 0.45f;
+        public float footprintRadius = 1.5f;
         [Tooltip("포탑 구역 기준 반지름 (m). 플레이어 스킬로 줄어든다")]
-        public float zoneRadius = 1.5f;
+        public float zoneRadius = 5f;
         [Tooltip("영웅 상호작용 반지름 (m). 구역 축소와 무관")]
-        public float interactRadius = 1.5f;
+        public float interactRadius = 5f;
 
         [Header("공격")]
         public float atk = 14f;
-        public float rangePx = 260f;
+        [Tooltip("사거리 (px, GameConfig.PxToWorld로 m 변환) — 280px ≈ 15m")]
+        public float rangePx = 280f;
         public float cooldownSec = 0.7f;
         public DmgType dmgType = DmgType.Phys;
 
@@ -87,8 +88,9 @@ namespace TowerDefense.Game
             {
                 go = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 go.transform.SetParent(session.transform, false);
-                go.transform.localScale = new Vector3(0.7f, 1.2f, 0.7f);
-                go.transform.position = ground + Vector3.up * 0.6f;
+                // ponytail: 풍차 크기 자리표시 상자 (밑면 3m, 높이 11m). 모델이 나오면 towerPrefab으로
+                go.transform.localScale = new Vector3(3f, 11f, 3f);
+                go.transform.position = ground + Vector3.up * 5.5f;
                 var col = go.GetComponent<Collider>();
                 if (col != null) Destroy(col); // 레이캐스트가 지형에 닿도록
                 var mpb = new MaterialPropertyBlock();
@@ -100,9 +102,9 @@ namespace TowerDefense.Game
             var t = go.AddComponent<Tower>();
             t.Spec = spec;
             t._session = session;
-            t._beam = Rings.Line(go.transform, new Color(1f, 0.85f, 0.4f), 0.06f);
+            t._beam = Rings.Line(go.transform, new Color(1f, 0.85f, 0.4f), 0.25f);
             t._beam.enabled = false;
-            t._zoneRing = Rings.Circle(null, new Color(1f, 1f, 1f, 0.6f), 0.04f);
+            t._zoneRing = Rings.Circle(null, new Color(1f, 1f, 1f, 0.6f), 0.15f);
             t._zoneRing.transform.position = ground + Vector3.up * 0.05f;
             t._zoneRing.transform.SetParent(go.transform, true);
             t._zoneRing.gameObject.SetActive(false);
@@ -127,7 +129,7 @@ namespace TowerDefense.Game
             if (target == null) return;
 
             _cd = Cooldown * _session.Mods.CdMul;
-            _beam.SetPosition(0, transform.position + Vector3.up * 0.5f);
+            _beam.SetPosition(0, transform.position + Vector3.up * 4.5f); // 풍차 윗부분에서
             _beam.SetPosition(1, target.transform.position);
             _beam.enabled = true;
             _beamUntil = Time.time + 0.08f;

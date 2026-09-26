@@ -65,7 +65,7 @@ namespace TowerDefense.Game
 
         [Header("크립 무리 이동")]
         [Tooltip("크립끼리 이 거리(m) 안으로 붙지 않게 밀어낸다")]
-        public float creepSpacing = 0.45f;
+        public float creepSpacing = 1.1f;
         private Transform _enemyRoot;
         private float _messageUntil;
         private string _result = "";

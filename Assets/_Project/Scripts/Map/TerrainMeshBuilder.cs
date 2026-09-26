@@ -9,15 +9,15 @@ namespace TowerDefense.Map
     {
         [Header("타일")]
         [Tooltip("타일 한 변의 길이 (m)")]
-        public float tileSize = 1.5f;
+        public float tileSize = 4f;
         [Tooltip("타일 한 변을 몇 칸으로 쪼갤지. 클수록 지형이 부드럽고 삼각형이 늘어난다.")]
         [Range(1, 6)] public int subdivisions = 3;
 
         [Header("지형 높낮이")]
         [Tooltip("지형 높이 진폭 (m)")]
-        public float heightAmplitude = 0.7f;
+        public float heightAmplitude = 1.9f;
         [Tooltip("노이즈 주파수. 작을수록 완만한 언덕.")]
-        public float noiseFrequency = 0.18f;
+        public float noiseFrequency = 0.0675f;
         [Range(1, 4)] public int octaves = 3;
         [Tooltip("타일 경계를 감추기 위한 꼭짓점 XZ 흔들림 (서브셀 크기 대비 비율)")]
         [Range(0f, 0.45f)] public float xzJitter = 0.3f;

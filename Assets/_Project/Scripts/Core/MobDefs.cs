@@ -126,7 +126,7 @@ namespace TowerDefense.Core
                 Boss = false,
                 Name = kind.Name,
                 Color = fam.Color,
-                Scale = 1f + tier * 0.2f,
+                Scale = 1f + tier * 0.25f, // 사람 크기 1.0 ~ 1.5배 (docs/SCALE.md)
                 Splits = kind.Splits,
             };
         }
@@ -189,7 +189,7 @@ namespace TowerDefense.Core
                 Boss = true,
                 Name = def.Name,
                 Color = 0xff2e2e,
-                Scale = 2.2f,
+                Scale = 2.2f, // 약 4m — 크립 최대보다 크다
             };
         }
 
