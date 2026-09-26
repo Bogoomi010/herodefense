@@ -19,6 +19,8 @@ namespace TowerDefense.Core
         public readonly string Name;
         public readonly uint Color;
         public readonly float Scale;
+        public readonly string Id;    // 크립 종류 id (분열 자식 종류를 정한다)
+        public readonly string Model; // 모델 프리팹 이름
 
         public bool Dead;
         /// <summary>경로 진행 거리(px). 분열 자식 배치·도착 판정에 사용.</summary>
@@ -47,6 +49,8 @@ namespace TowerDefense.Core
             Name = s.Name ?? "";
             Color = s.Color;
             Scale = s.Scale <= 0f ? 1f : s.Scale;
+            Id = s.Id;
+            Model = s.Model;
             Dist = startDist;
         }
 

@@ -89,7 +89,7 @@ namespace TowerDefense.Game
                     for (int i = 0; i < mats.Length; i++)
                     {
                         all.Add((r, i));
-                        if (mats[i] != null && mats[i].name.Contains("Wool")) tint.Add((r, i));
+                        if (mats[i] != null && (mats[i].name.Contains("Wool") || mats[i].name.Contains("Body"))) tint.Add((r, i));
                     }
                 }
                 float modelH = Mathf.Max(0.01f, b.size.y);

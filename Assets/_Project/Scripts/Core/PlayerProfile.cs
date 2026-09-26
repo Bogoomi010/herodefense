@@ -24,6 +24,8 @@ namespace TowerDefense.Core
         public Difficulty difficulty = Difficulty.Normal;
         /// <summary>스테이지별 최고 별. 인덱스 = 스테이지 번호 - 1, 0 = 아직 못 깸</summary>
         public List<int> stageStars = new List<int>();
+        /// <summary>이 저장 슬롯에서 이미 만난 크립 종류 id — 처음 만날 때만 소개 카드를 띄운다</summary>
+        public List<string> seenCreeps = new List<string>();
 
         public const int PointsPerLevel = 1;
 

@@ -94,10 +94,17 @@ namespace TowerDefense.Game.EditorTools
             if (list == null)
             {
                 list = ScriptableObject.CreateInstance<StageList>();
-                float[] hp = { 1f, 1.15f, 1.3f, 1.5f };
+                // 농장 구역 크립 풀 (docs/STAGE.md 크립 구성, docs/STORY_ZONES.md) — 한 종류씩 늘며 웨이브 안에서 섞여 나온다
+                string[][] pools =
+                {
+                    new[] { "sheep" },
+                    new[] { "sheep", "pig" },
+                    new[] { "sheep", "pig", "chicken" },
+                    new[] { "sheep", "pig", "chicken", "cow" },
+                };
                 int[] exp = { 60, 70, 80, 120 };
                 for (int n = 1; n <= seeds.Length; n++)
-                    list.stages.Add(new StageDef { sceneName = $"Stage_{n:00}", starTimeSec = 420f, hpMul = hp[n - 1], clearExp = exp[n - 1], clearSkillPoints = 1 });
+                    list.stages.Add(new StageDef { sceneName = $"Stage_{n:00}", starTimeSec = 420f, creeps = new List<string>(pools[n - 1]), boss = n == 4 ? "bull" : "", clearExp = exp[n - 1], clearSkillPoints = 1 });
                 AssetDatabase.CreateAsset(list, StagesPath);
             }
 

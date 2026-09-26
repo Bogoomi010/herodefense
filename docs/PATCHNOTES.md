@@ -4,6 +4,12 @@
 
 ## 2026-09-27
 
+- 나무 베기·포탑 업그레이드 중에 머물러야 하는 범위를 바닥에 원으로 표시. 지형을 따라 휘고, 경계에 가까우면(반지름 80% 초과) 노랑 → 빨강. 기획은 `docs/HERO_INTERACTION.md`. 플레이로 확인(나무 3m, 포탑 5m).
+- 농장 크립 구성 변경: 한 웨이브 안에 풀의 종류가 섞여 나온다. 1스테이지 양, 2스테이지 양·돼지, 3스테이지 양·돼지·닭, 4스테이지 양·돼지·닭·소 + 보스 성난 황소. 웨이브 안내에 섞여 나오는 종류를 모두 표시. EditMode 테스트 46개 통과, 4스테이지 플레이로 확인(한 웨이브에 닭 4·돼지 5·소 4·양 4).
+- 농장 구역 크립 구현: 1~4스테이지를 양·닭·소·돼지로 바꾸고 4스테이지 보스를 성난 황소로. 돼지는 쓰러지면 새끼 돼지 둘. 크립 종류마다 모델을 고른다(`Resources/Creeps`). Blender MCP로 닭·소·돼지·황소 로우폴리 모델 제작(`Tools/Blender/make_farm.py`). 스토리 구역 기획 확정(구역 = 스테이지 4개). EditMode 테스트 46개 통과, 4스테이지 플레이로 확인.
+- 스토리 구역 기획 초안 (`docs/STORY_ZONES.md`): 농장 → 도심 → 좀비 → 지옥 4구역, 구역 하나 = 일반 3 + 보스 1 스테이지. 구역별 크립(기본·빠름·단단함·분열 역할)과 보스 초안, 지금 구현과의 차이, 미정 항목.
+- 크립 구성·강도 변경 (킹덤러쉬식 혼합, `docs/STAGE.md`): 스테이지마다 나오는 크립 풀을 정하고 웨이브마다 차례로 돈다. 새 크립은 포탑 해금과 짝(2스테이지 화난 비둘기 ↔ 냉기, 3스테이지 돌멩이·큰 쓰레기 ↔ 발리스타). 스테이지 HP 배율을 1.15^(스테이지−1) 공식으로. 처음 만나는 크립이 나오면 소개 카드(5초)를 띄우고 저장 슬롯에 기록. EditMode 테스트 45개 통과, 2스테이지 플레이로 확인.
+- 크립 HP 조절 방식 조사 문서 추가 (`docs/CREEP_HP_RESEARCH.md`): 공식으로 키우기 vs 적 종류를 바꾸기, Kingdom Rush·BTD6·Arknights·Rogue Tower·PvZ·인디 TD 사례, 공식 설계 규칙, 우리 게임의 지금 방식과 비교, 선택지 4가지.
 - 에셋 정리: 쓰지 않는 에셋과 폴더를 지우고 `Assets/_Project` 하나로 모았다.
   - 삭제: URP 템플릿(Readme, TutorialInfo), 샘플 씬(`Assets/Scenes`), 크래시 백업 씬(`Assets/_Recovery`), 빈 자리표시 폴더(Animations, Audio, Art/Sprites, Prefabs/Projectiles·Towers·UI, ScriptableObjects, Scripts/Enemies·Towers·Waves), `.gitkeep`.
   - 이동(참조 유지): 렌더링 설정 → `_Project/Settings/Rendering` (`SampleSceneProfile`은 `StageVolumeProfile`로 이름 변경), 입력 액션 → `_Project/Settings/Input`, UI 기본 테마 → `_Project/UI/Themes`.

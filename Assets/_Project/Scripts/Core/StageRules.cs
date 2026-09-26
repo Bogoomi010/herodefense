@@ -8,6 +8,11 @@ namespace TowerDefense.Core
         /// <summary>일반 스테이지 3개마다 보스 스테이지 1개: 4, 8, 12 …</summary>
         public static bool IsBoss(int stage) => stage > 0 && stage % 4 == 0;
 
+        /// <summary>스테이지당 크립 HP 증가율. 스테이지 배율 = 1.15^(스테이지 − 1) (docs/STAGE.md 크립 강도)</summary>
+        public const double StageHpGrowth = 1.15;
+
+        public static float StageHpMul(int stage) => (float)Math.Pow(StageHpGrowth, Math.Max(1, stage) - 1);
+
         /// <summary>
         /// 별: 3에서 시작해 통과한 크립이 있으면 −1, 기준 시간 안에 못 깨면 −1. 클리어하면 최소 1, 클리어 못 하면 0.
         /// </summary>

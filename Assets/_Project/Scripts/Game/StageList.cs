@@ -14,8 +14,10 @@ namespace TowerDefense.Game
         public string sceneName;
         [Tooltip("별 기준 시간(초). 이 시간 안에 못 깨면 별 −1")]
         public float starTimeSec = 420f;
-        [Tooltip("크립 HP 배율 — 뒤 스테이지일수록 크게")]
-        public float hpMul = 1f;
+        [Tooltip("이 스테이지에 나오는 크립 종류 id (MobDefs). 웨이브마다 차례로 돈다. 비우면 원본 규칙. HP 배율은 번호로 정한다(StageRules.StageHpMul)")]
+        public List<string> creeps = new List<string>();
+        [Tooltip("보스 스테이지의 보스 id (MobDefs.BossById, 예: bull). 비우면 기본 스테이지 보스")]
+        public string boss = "";
         [Tooltip("클리어 보상 경험치 (다시 깨도 준다)")]
         public int clearExp = 60;
         [Tooltip("처음 클리어할 때만 주는 스킬 포인트")]

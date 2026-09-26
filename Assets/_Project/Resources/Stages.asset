@@ -15,21 +15,35 @@ MonoBehaviour:
   stages:
   - sceneName: Stage_01
     starTimeSec: 420
-    hpMul: 1
+    creeps:
+    - sheep
+    boss: 
     clearExp: 60
     clearSkillPoints: 1
   - sceneName: Stage_02
     starTimeSec: 420
-    hpMul: 1.15
+    creeps:
+    - sheep
+    - pig
+    boss: 
     clearExp: 70
     clearSkillPoints: 1
   - sceneName: Stage_03
     starTimeSec: 420
-    hpMul: 1.3
+    creeps:
+    - sheep
+    - pig
+    - chicken
+    boss: 
     clearExp: 80
     clearSkillPoints: 1
   - sceneName: Stage_04
     starTimeSec: 420
-    hpMul: 1.5
+    creeps:
+    - sheep
+    - pig
+    - chicken
+    - cow
+    boss: bull
     clearExp: 120
     clearSkillPoints: 1

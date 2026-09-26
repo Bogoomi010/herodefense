@@ -12,10 +12,19 @@ namespace TowerDefense.Game.EditorTools
     public static class MobPrefabBuilder
     {
         private const string MatDir = "Assets/_Project/Materials/Mobs";
-        private const string PrefabDir = "Assets/_Project/Prefabs/Enemies";
+        // 세션이 Resources.Load("Creeps/<이름>")로 크립 종류별 모델을 찾는다 (EnemySpawner.ModelFor)
+        private const string PrefabDir = "Assets/_Project/Resources/Creeps";
 
-        [MenuItem("TowerDefense/Mobs/Build Sheep Prefab")]
-        public static void BuildSheep() => Build("Assets/_Project/Art/Models/Mobs/Sheep.fbx", "Sheep");
+        /// <summary>Art/Models/Mobs의 FBX를 전부 프리팹으로 (Sheep, Chicken, Cow, Pig, Bull …)</summary>
+        [MenuItem("TowerDefense/Mobs/Build All Mob Prefabs")]
+        public static void BuildAll()
+        {
+            foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { "Assets/_Project/Art/Models/Mobs" }))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                Build(path, Path.GetFileNameWithoutExtension(path));
+            }
+        }
 
         public static GameObject Build(string fbxPath, string prefabName)
         {
