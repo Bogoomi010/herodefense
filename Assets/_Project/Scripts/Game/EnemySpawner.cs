@@ -59,6 +59,13 @@ namespace TowerDefense.Game
 
         private readonly List<EnemyView> _enemies = new List<EnemyView>();
         private PathFollower _path;
+        public PathFollower Path => _path;
+        /// <summary>크립이 퍼져 걸을 수 있는 길 반폭 (m). 타일 반폭보다 조금 좁게 — 몸이 길 밖으로 삐져나오지 않게.</summary>
+        public float PathHalfWidth { get; private set; }
+
+        [Header("크립 무리 이동")]
+        [Tooltip("크립끼리 이 거리(m) 안으로 붙지 않게 밀어낸다")]
+        public float creepSpacing = 0.45f;
         private Transform _enemyRoot;
         private float _messageUntil;
         private string _result = "";
@@ -82,6 +89,7 @@ namespace TowerDefense.Game
             if (map == null) map = FindFirstObjectByType<TileMap>();
             if (map.Grid == null) map.Generate();
             _path = new PathFollower(map.Waypoints);
+            PathHalfWidth = map.TileSize * 0.5f * 0.8f;
             _enemyRoot = new GameObject("Enemies").transform;
             _enemyRoot.SetParent(transform, false);
             int perWave = Mathf.RoundToInt(GameConfig.MobsPerRound * MobDefs.DifficultyCountMul(Profile.difficulty));
@@ -99,6 +107,7 @@ namespace TowerDefense.Game
             Wave.Update(d);
             if (Over) return;
 
+            Separate();
             for (int i = _enemies.Count - 1; i >= 0; i--)
             {
                 var e = _enemies[i];
@@ -178,7 +187,7 @@ namespace TowerDefense.Game
 
         private EnemyView AddEnemy(MobState state)
         {
-            var view = EnemyView.Create(state, _path, _enemyRoot, enemyPrefab);
+            var view = EnemyView.Create(state, this, _enemyRoot, enemyPrefab);
             _enemies.Add(view);
             return view;
         }
@@ -249,6 +258,64 @@ namespace TowerDefense.Game
             int n = 0;
             foreach (var e in _enemies) if (!e.State.Golden) n++;
             return n;
+        }
+
+        // ---------- 크립 무리 이동·넉백 (docs/CREEP_MOVEMENT.md) ----------
+
+        /// <summary>
+        /// 길 위 크립끼리 겹치지 않게 (진행 거리, 옆 위치) 평면에서 서로 밀어낸다.
+        /// ponytail: O(n²) — 필드 크립 수 상한(50)에서는 충분하다. 수백 마리가 되면 진행 거리로 정렬해 이웃만 본다.
+        /// </summary>
+        private void Separate()
+        {
+            float r = creepSpacing, r2 = r * r;
+            for (int i = 0; i < _enemies.Count; i++)
+            {
+                var a = _enemies[i];
+                if (a.Mode != EnemyView.Move.Path) continue;
+                for (int j = i + 1; j < _enemies.Count; j++)
+                {
+                    var b = _enemies[j];
+                    if (b.Mode != EnemyView.Move.Path) continue;
+                    float da = a.DistWorld - b.DistWorld, dl = a.Lateral - b.Lateral;
+                    float d2 = da * da + dl * dl;
+                    if (d2 >= r2) continue;
+                    float d = Mathf.Sqrt(d2);
+                    if (d < 1e-4f) { dl = Random.Range(-1f, 1f); da = 0f; d = Mathf.Abs(dl) + 1e-4f; }
+                    float push = (r - d) * 0.5f / d;
+                    a.State.Dist += da * push * GameConfig.WorldToPx;
+                    b.State.Dist -= da * push * GameConfig.WorldToPx;
+                    a.Lateral += dl * push;
+                    b.Lateral -= dl * push;
+                    a.ClampLateral();
+                    b.ClampLateral();
+                }
+            }
+        }
+
+        /// <summary>폭발 넉백: center 반경 radius 안 크립이 바깥으로 날아간다. 중심에 가까울수록 세게(가장자리에서 절반).</summary>
+        public void Explode(Vector3 center, float radius, float force)
+        {
+            foreach (var e in _enemies)
+            {
+                var p = e.transform.position;
+                float d = Vector2.Distance(new Vector2(p.x, p.z), new Vector2(center.x, center.z));
+                if (d > radius) continue;
+                e.Knockback(center, force * (1f - 0.5f * d / radius));
+            }
+        }
+
+        /// <summary>지형 높이 (지형 메시에 레이캐스트). 못 맞으면 경로 높이.</summary>
+        public float GroundY(Vector3 p) =>
+            Physics.Raycast(new Vector3(p.x, p.y + 30f, p.z), Vector3.down, out var hit, 100f) ? hit.point.y : _path.Start.y;
+
+        /// <summary>맵 바깥으로 날아가지 않게 XZ를 맵 안으로 자른다.</summary>
+        public Vector3 ClampToField(Vector3 p)
+        {
+            var o = map.transform.position;
+            p.x = Mathf.Clamp(p.x, o.x, o.x + map.width * map.TileSize);
+            p.z = Mathf.Clamp(p.z, o.z, o.z + map.height * map.TileSize);
+            return p;
         }
 
         // ---------- 조회 ----------

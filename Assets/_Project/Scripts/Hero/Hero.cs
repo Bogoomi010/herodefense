@@ -33,6 +33,10 @@ namespace TowerDefense.Hero
         public float rangePx = 220f;
         public float cooldownSec = 0.4f;
         public TowerDefense.Core.DmgType dmgType = TowerDefense.Core.DmgType.Phys;
+        [Tooltip("공격 지점 주변 크립을 날려 보내는 폭발 반경 (m) — docs/CREEP_MOVEMENT.md")]
+        public float knockRadius = 1.2f;
+        [Tooltip("넉백 세기 (날아가는 수평 초기 속도 m/s)")]
+        public float knockForce = 5f;
 
         [Header("강림")]
         public float descendDuration = 0.7f;
@@ -232,7 +236,9 @@ namespace TowerDefense.Hero
             if (target == null) return;
 
             _atkCd = cooldownSec;
+            var hitPos = target.transform.position;
             session.Damage(target, atk, dmgType);
+            session.Explode(hitPos, knockRadius, knockForce);
 
             if (_beam == null) CreateBeam();
             _beam.SetPosition(0, here + Vector3.up * _halfHeight);
