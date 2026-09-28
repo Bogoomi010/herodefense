@@ -123,6 +123,8 @@ namespace TowerDefense.Game
         private static readonly Color SelectColor = new Color(1f, 0.85f, 0.3f);
 
         public Vector3 Position => transform.position;
+        /// <summary>설치 때 잰 몸체 경계 (월드). 포탑은 움직이지 않는다. 콜라이더가 없어 3인칭 카메라 가림 판정에 쓴다.</summary>
+        public Bounds Body { get; private set; }
         /// <summary>지금 공격 사거리 (m)</summary>
         public float Range => Spec.rangePx * _session.Mods.RangeMul * GameConfig.PxToWorld;
         public float InteractRadius => Spec.interactRadius;
@@ -165,6 +167,7 @@ namespace TowerDefense.Game
 
             var t = go.AddComponent<Tower>();
             t.Spec = spec;
+            t.Body = MeasureBody(go, ground, spec.footprintRadius); // 사거리 선·원을 붙이기 전에 잰다
             t._session = session;
             var beamColor = spec.kind == TowerKind.Ballista ? new Color(0.25f, 0.2f, 0.15f) : new Color(1f, 0.85f, 0.4f);
             t._beam = Rings.Line(go.transform, beamColor, spec.kind == TowerKind.Ballista ? 0.4f : 0.25f);
@@ -174,6 +177,13 @@ namespace TowerDefense.Game
             t._zoneRing.transform.SetParent(go.transform, true);
             t._zoneRing.gameObject.SetActive(false);
             return t;
+        }
+
+        private static Bounds MeasureBody(GameObject go, Vector3 ground, float footprint)
+        {
+            var b = new Bounds(ground, new Vector3(footprint * 2f, 0f, footprint * 2f));
+            foreach (var r in go.GetComponentsInChildren<Renderer>()) b.Encapsulate(r.bounds);
+            return b;
         }
 
         /// <summary>설치 모드에서 구역 원 표시.</summary>
