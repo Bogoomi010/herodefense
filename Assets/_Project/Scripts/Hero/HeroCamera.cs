@@ -136,7 +136,15 @@ namespace TowerDefense.Hero
 
             if (hero.State == HeroState.Active)
             {
-                if (Mouse.current != null)
+                // 스테이지가 끝나면(클리어·실패) 정산 창 버튼을 누를 수 있게 커서를 풀고 시점 회전을 멈춘다
+                bool over = hero.session != null && hero.session.Over;
+                if (over && Cursor.lockState != CursorLockMode.None)
+                {
+                    Cursor.lockState = CursorLockMode.None;
+                    Cursor.visible = true;
+                }
+
+                if (!over && Mouse.current != null)
                 {
                     Vector2 delta = Mouse.current.delta.ReadValue();
                     _yaw += delta.x * mouseSensitivity;
