@@ -26,6 +26,12 @@ namespace TowerDefense.Core
         public List<int> stageStars = new List<int>();
         /// <summary>이 저장 슬롯에서 이미 만난 크립 종류 id — 처음 만날 때만 소개 카드를 띄운다</summary>
         public List<string> seenCreeps = new List<string>();
+        /// <summary>스테이지에 데려갈 영웅 (docs/HERO.md). 규칙은 Heroes</summary>
+        public HeroKind hero = HeroKind.Sword;
+        /// <summary>배운 영웅 기술 단계 (첫 기술 1단계는 넣지 않아도 배운 것으로 본다)</summary>
+        public List<HeroSkillLevel> heroSkills = new List<HeroSkillLevel>();
+        /// <summary>영웅마다 Q·E 장착 칸</summary>
+        public List<HeroLoadout> loadouts = new List<HeroLoadout>();
 
         public const int PointsPerLevel = 1;
 

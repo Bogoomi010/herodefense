@@ -55,9 +55,10 @@ namespace TowerDefense.Core
 
         public static float BaseHp(int round)
         {
-            // ♾ 무한 모드 (41R+): 지수 완화 1.21 → 1.13
+            // 스테이지 15웨이브 기준 1.16 (2026-09-28 1.21 → 1.16: 15웨이브가 1웨이브의 14배로 튀어 포탑만으로는 2·4스테이지를 못 깼다. 농장 구역은 쉬워야 한다)
+            // ♾ 무한 모드 (41R+): 지수 완화 → 1.13
             if (round > 40) return RoundJs(BaseHp(40) * Math.Pow(1.13, round - 40));
-            return RoundJs(18 * Math.Pow(1.21, round - 1));
+            return RoundJs(18 * Math.Pow(1.16, round - 1));
         }
 
         public static float BaseSpeed(int round) => 60f + round * 1.5f;
@@ -228,7 +229,7 @@ namespace TowerDefense.Core
             30 => new BossDef { Name = "스텔스 헬기", HpMul = 35, ArmorMul = 1.5f, Speed = 62, Trait = "빠르고 단단함" },
             40 => new BossDef { Name = "시티 브레이커", HpMul = 30, ArmorMul = 2.0f, Speed = 40, Trait = "최종 보스" },
             // 보스 스테이지 15웨이브 보스: 크고(2.2배) 느리고 HP가 많다. ponytail: 수치는 테스트 플레이로 조정
-            15 => new BossDef { Id = "boss", Name = "스테이지 보스", HpMul = 20, ArmorMul = 1.0f, Speed = 55, Trait = "크고 느리지만 체력이 아주 많다. 도착하기 전에 잡아야 클리어" },
+            15 => new BossDef { Id = "boss", Name = "스테이지 보스", HpMul = 7, ArmorMul = 1.0f, Speed = 55, Trait = "크고 느리지만 체력이 아주 많다. 도착하기 전에 잡아야 클리어" },
             _ => new BossDef { Name = "야근의 화신", HpMul = 24, ArmorMul = 1.5f, Speed = 50, Trait = "무한 모드" },
         };
 
@@ -236,7 +237,7 @@ namespace TowerDefense.Core
         public static BossDef? BossById(string id) => id switch
         {
             "boss" => BossDefFor(15),
-            "bull" => new BossDef { Id = "bull", Model = "Bull", Name = "성난 황소", HpMul = 20, ArmorMul = 1.2f, Speed = 55, Trait = "농장의 우두머리. 크고 질기다. 도착하기 전에 잡아야 클리어" },
+            "bull" => new BossDef { Id = "bull", Model = "Bull", Name = "성난 황소", HpMul = 7, ArmorMul = 1.2f, Speed = 55, Trait = "농장의 우두머리. 크고 질기다. 도착하기 전에 잡아야 클리어" },
             _ => null,
         };
 

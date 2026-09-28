@@ -41,7 +41,9 @@ namespace TowerDefense.UI.Editor
             return true;
         }
 
+        // 테스트 러너가 연 씬(InitTestScene…)에서 Play하면 비운다: 메인 메뉴로 바꾸면 PlayMode 테스트가 시작되지 않고 멈춘다
         private static void Apply() =>
-            EditorSceneManager.playModeStartScene = Enabled ? AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) : null;
+            EditorSceneManager.playModeStartScene = Enabled && !EditorSceneManager.GetActiveScene().name.StartsWith("InitTestScene")
+                ? AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) : null;
     }
 }

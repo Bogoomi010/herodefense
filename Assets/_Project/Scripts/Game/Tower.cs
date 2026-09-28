@@ -128,8 +128,11 @@ namespace TowerDefense.Game
         /// <summary>지금 공격 사거리 (m)</summary>
         public float Range => Spec.rangePx * _session.Mods.RangeMul * GameConfig.PxToWorld;
         public float InteractRadius => Spec.interactRadius;
-        public string Prompt => Spec.MaxLevel > 0 ? "E: 포탑 업그레이드" : $"{Spec.displayName} (업그레이드 없음)";
+        public string Prompt => Spec.MaxLevel > 0 ? "F: 포탑 업그레이드" : $"{Spec.displayName} (업그레이드 없음)";
         public bool IsAlive => this != null;
+        /// <summary>검사 기술 "전투 함성": 이 시각(실제 시간 Time.time)까지 공격 간격 × RallyMul</summary>
+        public float RallyUntil;
+        public const float RallyMul = 0.75f;
 
         public int Level(UpgradeBranch b) => _levels[(int)b];
         /// <summary>다음 단계 비용. 최대 단계면 -1.</summary>
@@ -146,9 +149,13 @@ namespace TowerDefense.Game
         public static Tower Create(EnemySpawner session, TowerSpec spec, Vector3 ground, GameObject prefab)
         {
             GameObject go;
+            // 종류별 모델: Resources/Towers/Tower<종류> (TowerPrefabBuilder). 없으면 설치기에 넣은 공용 모델, 그것도 없으면 색 상자
+            var model = Resources.Load<GameObject>($"Towers/Tower{spec.kind}");
+            if (model != null) prefab = model;
             if (prefab != null)
             {
-                go = Instantiate(prefab, ground, Quaternion.identity, session.transform);
+                // 모델은 발밑이 원점, 정면(+Z: 문·쇠뇌)이 가장 가까운 길 쪽을 보게 세운다
+                go = Instantiate(prefab, ground, FacePath(session, ground), session.transform);
             }
             else
             {
@@ -166,6 +173,16 @@ namespace TowerDefense.Game
             go.name = $"{spec.kind}_{_all.Count + 1}";
 
             var t = go.AddComponent<Tower>();
+            t._muzzle = prefab != null ? ground + Vector3.up * 7.6f : ground + Vector3.up * 10f; // 모델: 망대 쇠뇌 높이, 상자: 꼭대기 근처
+            foreach (var tr in go.GetComponentsInChildren<Transform>())
+                if (tr.name == "Head") { t._head = tr; break; }
+            if (t._head != null)
+            {
+                // 쉬는 자세의 쇠뇌는 탑 정면을 본다 → 조준 회전 = LookRotation(방향) * (탑 회전⁻¹ × 쇠뇌 회전)
+                t._headOffset = Quaternion.Inverse(go.transform.rotation) * t._head.rotation;
+                t._headRest = t._head.position;
+                t._aimDir = go.transform.forward;
+            }
             t.Spec = spec;
             t.Body = MeasureBody(go, ground, spec.footprintRadius); // 사거리 선·원을 붙이기 전에 잰다
             t._session = session;
@@ -209,11 +226,45 @@ namespace TowerDefense.Game
             foreach (var r in _outline) r.enabled = on;
         }
 
+        /// <summary>가장 가까운 길 지점을 향한 회전 (길이 없거나 너무 가까우면 기본 방향)</summary>
+        private static Quaternion FacePath(EnemySpawner session, Vector3 at)
+        {
+            if (session.Path == null) return Quaternion.identity;
+            var (dist, _) = session.Path.Closest(at);
+            var d = session.Path.PosAt(dist) - at;
+            d.y = 0f;
+            return d.sqrMagnitude > 0.01f ? Quaternion.LookRotation(d.normalized, Vector3.up) : Quaternion.identity;
+        }
+
+        // ---------- 무기 조준 (모델에 "Head"가 있을 때: 기본 포탑 쇠뇌) ----------
+        private Transform _head;
+        private Quaternion _headOffset;
+        private Vector3 _headRest, _aimDir;
+        private float _recoil; // 1 = 막 쏨 → 0
+        private const float AimSpeed = 10f, RecoilDist = 0.35f, RecoilBack = 6f, HeadReach = 2.9f;
+
+        /// <summary>사거리 안 가장 가까운 크립을 향해 무기를 부드럽게 돌리고, 쏜 직후엔 뒤로 밀렸다 돌아온다.</summary>
+        private void Aim(float range)
+        {
+            if (_head == null) return;
+            var target = _session.NearestEnemy(transform.position, range);
+            if (target != null)
+            {
+                var d = target.transform.position - _headRest;
+                d.y = 0f;
+                if (d.sqrMagnitude > 0.01f) _aimDir = d.normalized;
+            }
+            _head.rotation = Quaternion.Slerp(_head.rotation, Quaternion.LookRotation(_aimDir, Vector3.up) * _headOffset, 1f - Mathf.Exp(-AimSpeed * Time.deltaTime));
+            _recoil = Mathf.MoveTowards(_recoil, 0f, RecoilBack * Time.deltaTime);
+            _head.position = _headRest - _aimDir * (RecoilDist * _recoil);
+        }
+
         private void Update()
         {
             if (_session == null || _session.Over) return;
             _cd -= Time.deltaTime * _session.timeScale;
             if (_beam.enabled && Time.time >= _beamUntil) _beam.enabled = false;
+            Aim(Range);
             if (_cd > 0f) return;
 
             float range = Range;
@@ -229,14 +280,17 @@ namespace TowerDefense.Game
                 if (Spec.kind == TowerKind.Frost) Projectile.Launch(Muzzle, Ground(target.transform.position), Spec.projectileSec, 2f, Spec.color, 0.6f, Chill);
                 else Shoot(target);
             }
-            _cd = Cooldown * _session.Mods.CdMul;
+            _cd = Cooldown * _session.Mods.CdMul * (Time.time < RallyUntil ? RallyMul : 1f);
         }
 
-        private Vector3 Muzzle => transform.position + Vector3.up * 4.5f; // 풍차 윗부분에서
+        private Vector3 _muzzle;
+        // 쏘는 자리: 무기가 있으면 무기 끝(조준 방향으로 HeadReach 앞), 없으면 Create에서 정한 높이
+        private Vector3 Muzzle => _head != null ? _headRest + _aimDir * HeadReach + Vector3.up * 0.3f : _muzzle;
 
         /// <summary>기본·발리스타: 즉시 맞는 한 발 (빔으로 표시)</summary>
         private void Shoot(EnemyView target)
         {
+            _recoil = 1f;
             _beam.SetPosition(0, Muzzle);
             _beam.SetPosition(1, target.transform.position);
             _beam.enabled = true;

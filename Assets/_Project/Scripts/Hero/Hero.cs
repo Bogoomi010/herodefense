@@ -11,6 +11,7 @@ namespace TowerDefense.Hero
     /// <summary>
     /// 절벽 위(perch)에 서서 전장을 내려다보는 영웅.
     /// 조작: Ctrl+호버(Perched) = 강림 지점 표시, Ctrl+좌클릭(Perched) = 강림, WASD(Active) = 이동, 좌클릭(Active) = 가까운 적 공격, T = 절벽 귀환 (강림 후 returnCooldownSec가 지나야 가능).
+    /// 영웅 종류(<see cref="Kind"/>)는 저장 슬롯에서 고른 영웅 (docs/HERO.md). 거너는 누르고 있으면 조준 방향으로 연사, 탄창·R 장전 (docs/HERO_GUNNER.md).
     /// 강림은 귀환 후 descendCooldownSec(플레이어 스킬로 단축)가 지나야 다시 할 수 있다 (docs/HERO_DESCENT.md).
     /// </summary>
     public sealed class Hero : MonoBehaviour
@@ -26,6 +27,14 @@ namespace TowerDefense.Hero
 
         [Header("이동")]
         public float moveSpeed = 6f;
+
+        [Header("점프 (필드 시점, Space)")]
+        [Tooltip("점프 높이 (m)")]
+        public float jumpHeight = 1.3f;
+        [Tooltip("점프 중력 (m/s²) — 클수록 빨리 떨어져 경쾌하다")]
+        public float jumpGravity = 25f;
+        private float _jumpY, _jumpV; // 땅에서 뜬 높이, 위로 향하는 속도
+        public bool Airborne => _jumpY > 0f;
         public float turnSpeed = 720f;
 
         [Header("전투")]
@@ -33,10 +42,24 @@ namespace TowerDefense.Hero
         public float rangePx = 220f;
         public float cooldownSec = 0.4f;
         public TowerDefense.Core.DmgType dmgType = TowerDefense.Core.DmgType.Phys;
-        [Tooltip("공격 지점 주변 크립을 날려 보내는 폭발 반경 (m) — docs/CREEP_MOVEMENT.md")]
-        public float knockRadius = 3f;
-        [Tooltip("넉백 세기 (날아가는 수평 초기 속도 m/s)")]
-        public float knockForce = 9f;
+
+        /// <summary>이번 스테이지에 데려온 영웅</summary>
+        public HeroKind Kind { get; private set; } = HeroKind.Sword;
+
+        [Header("거너 (docs/HERO_GUNNER.md)")]
+        public float gunDamage = 20f;
+        public float gunInterval = 0.25f;
+        public int magSize = 8;
+        public float reloadSec = 1.5f;
+        public float gunRange = 25f;
+        [Tooltip("조준 방향 선에서 이 거리(m) 안의 크립을 맞힌다 (조준 보정)")]
+        public float aimTolerance = 1.5f;
+        public int Ammo { get; private set; }
+        /// <summary>장전이 끝날 때까지 남은 초. 장전 중이 아니면 0.</summary>
+        public float ReloadLeft => Mathf.Max(0f, _reloadEnd - Time.time);
+        private float _reloadEnd;
+        /// <summary>거너 기술 "속사": 이 시각까지 연사 간격 절반, 탄을 쓰지 않는다</summary>
+        public float RapidUntil;
 
         [Header("강림 효과 (docs/HERO.md)")]
         [Tooltip("착지 지점 중심, 이 반경(m) 안 크립에게 스턴 + 에어본")]
@@ -44,7 +67,7 @@ namespace TowerDefense.Hero
         [Tooltip("에어본 세기 (수평 초기 속도 m/s, 가장자리는 절반). 날아가는 거리는 세기²에 비례 — 11 ≈ 투석기(9)의 1.5배 거리")]
         public float impactForce = 11f;
         [Tooltip("스턴 시간(초). 날아간 크립은 뒤집혀 떨어진 순간부터, 날아가지 않는 보스는 강림 순간부터 절반")]
-        public float impactStunSec = 1f;
+        public float impactStunSec = 2f;
 
         [Header("강림 궤적 (운석: 솟구침 → 정점 → 내리꽂힘)")]
         [Tooltip("절벽에서 정점까지 솟구치는 시간(초). 처음엔 빠르고 정점에서 느려진다")]
@@ -116,7 +139,14 @@ namespace TowerDefense.Hero
             if (col != null) col.enabled = false;
 
             transform.SetPositionAndRotation(PerchPos, PerchRot);
+            if (session != null && session.Profile != null) Kind = Heroes.Chosen(session.Profile);
+            var (r, g, b) = Heroes.Rgb(Kind);
+            var block = new MaterialPropertyBlock();
+            block.SetColor("_BaseColor", new Color(r, g, b));
+            foreach (var rend in GetComponentsInChildren<Renderer>()) rend.SetPropertyBlock(block);
+            Ammo = magSize;
             if (GetComponent<HeroInteractor>() == null) gameObject.AddComponent<HeroInteractor>();
+            if (GetComponent<HeroSkills>() == null) gameObject.AddComponent<HeroSkills>();
         }
 
         private void Update()
@@ -237,7 +267,6 @@ namespace TowerDefense.Hero
             // 거꾸로 돈다: 피해로 죽은 크립은 목록에서 빠지고, 분열 자식은 끝에 붙는다(이번 충격 대상 아님)
             for (int i = list.Count - 1; i >= 0; i--)
             {
-                if (i >= list.Count) continue;
                 var e = list[i];
                 var p = e.transform.position;
                 if ((p.x - center.x) * (p.x - center.x) + (p.z - center.z) * (p.z - center.z) > r2) continue;
@@ -250,14 +279,92 @@ namespace TowerDefense.Hero
         private void TickActive()
         {
             Move();
-            SnapToGround(transform.position);
+            TickDash();
+            TickJump();
+            SnapToGround(transform.position, _jumpY);
             ClampToMap();
 
             _atkCd -= Time.deltaTime;
             if (_beam != null && _beam.enabled && Time.time >= _beamUntil) _beam.enabled = false;
 
-            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame && _atkCd <= 0f)
+            // 커서가 풀려 있으면(Alt·업그레이드 창) 좌클릭은 HUD 버튼용이라 공격하지 않는다
+            bool locked = Cursor.lockState == CursorLockMode.Locked;
+            if (Kind == HeroKind.Gunner) { TickGun(locked); return; }
+            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame && _atkCd <= 0f && locked)
                 TryAttack();
+        }
+
+        // ---------- 거너: 누르고 있으면 연사, 탄이 0이면 자동 장전, R 장전 ----------
+
+        private void TickGun(bool locked)
+        {
+            if (_reloadEnd > 0f && Time.time >= _reloadEnd) { _reloadEnd = 0f; Ammo = magSize; }
+            bool reloading = _reloadEnd > 0f;
+            if (!reloading && Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame && Ammo < magSize) StartReload();
+            if (reloading || _atkCd > 0f || !locked || Mouse.current == null || !Mouse.current.leftButton.isPressed) return;
+
+            bool rapid = Time.time < RapidUntil;
+            _atkCd = rapid ? gunInterval * 0.5f : gunInterval;
+            if (!rapid) Ammo--;
+            var from = transform.position + Vector3.up * 0.4f;
+            var target = FirstAlong(from, AimFlat, gunRange, aimTolerance);
+            if (target != null) session.Damage(target, gunDamage, dmgType);
+            Beam(from, target != null ? target.transform.position + Vector3.up : from + AimFlat * gunRange, new Color(1f, 0.9f, 0.5f), 0.05f);
+            if (Ammo <= 0) StartReload();
+        }
+
+        private void StartReload() => _reloadEnd = Time.time + reloadSec;
+
+        /// <summary>조준 방향: 카메라가 보는 수평 방향 (3인칭 카메라가 영웅 뒤에서 영웅을 본다).</summary>
+        // ponytail: 높이는 무시한 수평 조준 — 카메라가 영웅을 내려다봐서 화면 가운데 선이 몇 m 앞 땅에 박히기 때문. 높낮이 있는 적이 나오면 3D 조준으로
+        public Vector3 AimFlat
+        {
+            get
+            {
+                var f = cam != null ? cam.transform.forward : transform.forward;
+                f.y = 0f;
+                return f.sqrMagnitude > 1e-4f ? f.normalized : Facing;
+            }
+        }
+
+        /// <summary>수평 선(from에서 dir로 range m) 옆 tolerance m 안의 크립인가. along = 선을 따라 잰 거리.</summary>
+        public static bool OnLine(EnemyView e, Vector3 from, Vector3 dir, float range, float tolerance, out float along)
+        {
+            var d = e.transform.position - from;
+            d.y = 0f;
+            along = Vector3.Dot(d, dir);
+            return !e.State.Dead && along >= 0f && along <= range && (d - dir * along).sqrMagnitude <= tolerance * tolerance;
+        }
+
+        /// <summary>선 위에서 가장 먼저 맞는 크립. 없으면 null.</summary>
+        public EnemyView FirstAlong(Vector3 from, Vector3 dir, float range, float tolerance)
+        {
+            if (session == null) return null;
+            EnemyView best = null;
+            float bestAlong = float.MaxValue;
+            foreach (var e in session.Enemies)
+                if (OnLine(e, from, dir, range, tolerance, out float a) && a < bestAlong) { bestAlong = a; best = e; }
+            return best;
+        }
+
+        // ---------- 돌진 (검사 기술) ----------
+
+        private Vector3 _dashVel;
+        private float _dashLeft;
+
+        public void Dash(Vector3 dir, float distance, float sec)
+        {
+            _dashVel = dir.normalized * (distance / sec);
+            _dashLeft = sec;
+            transform.rotation = Quaternion.LookRotation(dir);
+        }
+
+        private void TickDash()
+        {
+            if (_dashLeft <= 0f) return;
+            float dt = Mathf.Min(Time.deltaTime, _dashLeft);
+            _dashLeft -= dt;
+            transform.position += _dashVel * dt;
         }
 
         private void Move()
@@ -286,10 +393,21 @@ namespace TowerDefense.Hero
             transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, turnSpeed * Time.deltaTime);
         }
 
-        private void SnapToGround(Vector3 at)
+        /// <summary>Space: 땅에 있을 때만 뛴다. 포물선(초속 √(2gh))으로 올랐다가 땅에 닿으면 멈춘다.</summary>
+        private void TickJump()
+        {
+            if (_jumpY <= 0f && Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
+                _jumpV = Mathf.Sqrt(2f * jumpGravity * jumpHeight);
+            if (_jumpY <= 0f && _jumpV <= 0f) return;
+            _jumpV -= jumpGravity * Time.deltaTime;
+            _jumpY += _jumpV * Time.deltaTime;
+            if (_jumpY <= 0f) _jumpY = _jumpV = 0f;
+        }
+
+        private void SnapToGround(Vector3 at, float lift = 0f)
         {
             if (Physics.Raycast(at + Vector3.up * 20f, Vector3.down, out var hit, 100f))
-                transform.position = new Vector3(at.x, hit.point.y + _halfHeight, at.z);
+                transform.position = new Vector3(at.x, hit.point.y + _halfHeight + lift, at.z);
             else
                 transform.position = at;
         }
@@ -329,15 +447,20 @@ namespace TowerDefense.Hero
             if (target == null) return;
 
             _atkCd = cooldownSec;
-            var hitPos = target.transform.position;
-            session.Damage(target, atk, dmgType);
-            session.Explode(hitPos, knockRadius, knockForce);
+            session.Damage(target, atk, dmgType); // 피해만 준다 — 영웅 공격에는 넉백이 없다 (2026-09-27)
 
+            Beam(here + Vector3.up * _halfHeight, target.transform.position, new Color(1f, 0.85f, 0.4f), 0.08f);
+        }
+
+        /// <summary>짧게 보이는 선 (공격·창·관통탄)</summary>
+        public void Beam(Vector3 from, Vector3 to, Color c, float sec)
+        {
             if (_beam == null) CreateBeam();
-            _beam.SetPosition(0, here + Vector3.up * _halfHeight);
-            _beam.SetPosition(1, target.transform.position);
+            _beam.material.SetColor("_BaseColor", c);
+            _beam.SetPosition(0, from);
+            _beam.SetPosition(1, to);
             _beam.enabled = true;
-            _beamUntil = Time.time + 0.08f;
+            _beamUntil = Time.time + sec;
         }
 
         private void CreateBeam()
@@ -369,6 +492,10 @@ namespace TowerDefense.Hero
             HideMarker();
             transform.SetPositionAndRotation(PerchPos, PerchRot);
             if (_beam != null) _beam.enabled = false;
+            _jumpY = _jumpV = 0f;
+            _dashLeft = 0f;
+            _reloadEnd = 0f;
+            Ammo = magSize; // 절벽으로 돌아오면 탄창이 가득 찬다
             _returnedAt = Time.time;
             SetState(HeroState.Perched);
         }

@@ -8,7 +8,7 @@
             <ui:Button name="btn-back" text="← 메인 메뉴" class="menu-button header-button" />
             <ui:Label text="스테이지 선택" class="panel-title stage-title" />
             <ui:Label name="slot-info" text="" class="skills-info" />
-            <ui:Button name="btn-skills" text="스킬트리" class="menu-button header-button hidden" />
+            <ui:Button name="btn-skills" text="스킬" class="menu-button header-button hidden" />
         </ui:VisualElement>
 
         <ui:VisualElement class="stage-body">
@@ -17,16 +17,21 @@
             <ui:Button name="page-next" text="▶" class="menu-button page-arrow" />
         </ui:VisualElement>
         <ui:Label name="page-label" text="" class="page-label" />
+        <ui:VisualElement name="hero-row" class="hero-row" />
 
         <ui:VisualElement name="panel-skills" class="panel skills-panel hidden">
             <ui:VisualElement class="skills-header">
-                <ui:Label text="스킬트리" class="panel-title" />
+                <ui:VisualElement class="skills-tabs">
+                    <ui:Button name="tab-player" text="플레이어 스킬트리" class="menu-button skills-tab" />
+                    <ui:Button name="tab-hero" text="영웅 기술" class="menu-button skills-tab" />
+                </ui:VisualElement>
                 <ui:Label name="skills-info" text="" class="skills-info" />
             </ui:VisualElement>
             <ui:VisualElement name="skills-viewport" class="skills-viewport" />
+            <ui:VisualElement name="hero-skills" class="hero-skills hidden" />
             <ui:Label name="skills-desc" text="노드를 클릭해 찍는다 · 끌어서 이동 · 휠로 확대" class="diff-desc" />
             <ui:VisualElement class="quit-buttons">
-                <ui:Button name="skills-reset" text="초기화 (무료)" class="menu-button panel-button" />
+                <ui:Button name="skills-reset" text="이 탭 초기화 (무료)" class="menu-button panel-button" />
                 <ui:Button name="skills-back" text="뒤로" class="menu-button panel-button" />
             </ui:VisualElement>
         </ui:VisualElement>

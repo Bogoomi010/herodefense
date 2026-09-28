@@ -72,7 +72,8 @@ namespace TowerDefense.Game.EditorTools
                 if (!string.IsNullOrEmpty(err)) { Debug.LogError($"[BetaSetup] Map 이름 변경 실패: {err}"); return; }
             }
 
-            int[] seeds = { 1, 7, 23, 42 };
+            // 스테이지별 맵 시드. 2026-09-27에 1·3스테이지 맵을 맞바꿨다(Stage_01 = 시드 23, Stage_03 = 시드 1)
+            int[] seeds = { 23, 7, 1, 42 };
             for (int n = 2; n <= seeds.Length; n++)
             {
                 string path = $"{SceneDir}/Stage_{n:00}.unity";

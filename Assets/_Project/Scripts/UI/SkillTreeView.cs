@@ -103,7 +103,7 @@ namespace TowerDefense.UI
             catch (System.Exception e) { Debug.LogError($"[SkillTreeView] 프로필 저장 실패: {e}"); }
         }
 
-        private void Refresh()
+        public void Refresh()
         {
             _info.text = $"Lv {_profile.level}  ·  스킬 포인트 {_profile.skillPoints}";
             foreach (var kv in _buttons)

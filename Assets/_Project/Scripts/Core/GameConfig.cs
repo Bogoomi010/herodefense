@@ -17,7 +17,7 @@ namespace TowerDefense.Core
         public const int DeathStart = 10; // 데스 카운트
         public const int GachaCost = 20;
         public const int GachaCostMin = 5; // 할인 누적 시 바닥
-        public const int StartGold = 100;
+        public const int StartGold = 150; // 2026-09-28 100 → 150: 첫 웨이브 전에 포탑 3개 (농장 구역 초반 돼지)
         public const float PhaseSec = 180f; // 낮/밤 지속 시간(초)
         public const float PhaseBuff = 1.25f;
 

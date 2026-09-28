@@ -7,7 +7,7 @@ namespace TowerDefense.Game
     {
         Vector3 Position { get; }
         float InteractRadius { get; }
-        /// <summary>안내 문구 (예: "E: 나무 베기")</summary>
+        /// <summary>안내 문구 (예: "F: 나무 베기")</summary>
         string Prompt { get; }
         bool IsAlive { get; }
     }

@@ -1,0 +1,23 @@
+{
+    "name": "TowerDefense.Tests.PlayMode",
+    "rootNamespace": "TowerDefense.Tests",
+    "references": [
+        "TowerDefense.Core",
+        "TowerDefense.Game",
+        "TowerDefense.Map",
+        "UnityEngine.TestRunner"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

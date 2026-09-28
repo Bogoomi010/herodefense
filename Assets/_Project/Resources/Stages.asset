@@ -14,14 +14,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: TowerDefense.Game::TowerDefense.Game.StageList
   stages:
   - sceneName: Stage_01
-    starTimeSec: 420
+    starTimeSec: 480
+    hpMul: 0.5
     creeps:
     - sheep
     boss: 
     clearExp: 60
     clearSkillPoints: 1
   - sceneName: Stage_02
-    starTimeSec: 420
+    starTimeSec: 480
+    hpMul: 0.5
     creeps:
     - sheep
     - pig
@@ -29,7 +31,8 @@ MonoBehaviour:
     clearExp: 70
     clearSkillPoints: 1
   - sceneName: Stage_03
-    starTimeSec: 420
+    starTimeSec: 480
+    hpMul: 0.5
     creeps:
     - sheep
     - pig
@@ -38,7 +41,8 @@ MonoBehaviour:
     clearExp: 80
     clearSkillPoints: 1
   - sceneName: Stage_04
-    starTimeSec: 420
+    starTimeSec: 480
+    hpMul: 0.5
     creeps:
     - sheep
     - pig

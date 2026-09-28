@@ -14,6 +14,8 @@ namespace TowerDefense.Game
         public string sceneName;
         [Tooltip("별 기준 시간(초). 이 시간 안에 못 깨면 별 −1")]
         public float starTimeSec = 420f;
+        [Tooltip("이 스테이지만의 크립 HP 배율 (보스 포함). 번호로 정하는 배율(StageRules.StageHpMul)에 곱한다. 농장 구역(1~4)은 0.5")]
+        public float hpMul = 1f;
         [Tooltip("이 스테이지에 나오는 크립 종류 id (MobDefs). 웨이브마다 차례로 돈다. 비우면 원본 규칙. HP 배율은 번호로 정한다(StageRules.StageHpMul)")]
         public List<string> creeps = new List<string>();
         [Tooltip("보스 스테이지의 보스 id (MobDefs.BossById, 예: bull). 비우면 기본 스테이지 보스")]

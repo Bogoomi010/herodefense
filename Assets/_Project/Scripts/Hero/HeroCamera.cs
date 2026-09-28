@@ -43,6 +43,7 @@ namespace TowerDefense.Hero
         Vector3 _velocity;
         Vector3 _pos;       // 흔들림을 뺀 카메라 위치 (보간은 이 값으로)
         float _shakeUntil;
+        float _blendUntil;  // 절벽 → 3인칭 전환이 끝나는 시각. 그 뒤로는 보간 없이 마우스를 바로 따른다
         float _yaw;
         float _pitch;
         float _camDist = float.MaxValue; // 가림 때문에 줄어든 영웅~카메라 거리
@@ -98,6 +99,7 @@ namespace TowerDefense.Hero
             if (state == HeroState.Active)
             {
                 _shakeUntil = Time.time + shakeSec; // 운석 착지
+                _blendUntil = Time.time + smoothTime * 2f;
                 _yaw = hero.transform.eulerAngles.y;
                 _pitch = initialPitch;
                 _camDist = float.MaxValue;
@@ -108,6 +110,20 @@ namespace TowerDefense.Hero
             {
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
+            }
+        }
+
+        HeroInteractor _interactor;
+
+        /// <summary>필드 시점에서 커서를 풀어야 하는가: Alt를 누르는 중이거나, 업그레이드 방향 선택 창이 열려 있거나, 스테이지가 끝나 정산 창이 떠 있다</summary>
+        public bool CursorFree
+        {
+            get
+            {
+                if (_interactor == null && hero != null) _interactor = hero.GetComponent<HeroInteractor>();
+                var kb = Keyboard.current;
+                if (hero != null && hero.session != null && hero.session.Over) return true;
+                return (kb != null && (kb.leftAltKey.isPressed || kb.rightAltKey.isPressed)) || (_interactor != null && _interactor.IsChoosing);
             }
         }
 
@@ -136,15 +152,12 @@ namespace TowerDefense.Hero
 
             if (hero.State == HeroState.Active)
             {
-                // 스테이지가 끝나면(클리어·실패) 정산 창 버튼을 누를 수 있게 커서를 풀고 시점 회전을 멈춘다
-                bool over = hero.session != null && hero.session.Over;
-                if (over && Cursor.lockState != CursorLockMode.None)
-                {
-                    Cursor.lockState = CursorLockMode.None;
-                    Cursor.visible = true;
-                }
-
-                if (!over && Mouse.current != null)
+                // 커서 풀기: Alt를 누르는 동안이나 업그레이드 창이 열려 있으면 커서를 보여 HUD 버튼을 누를 수 있게 한다.
+                // 이때는 시점이 돌지 않는다 (공격도 막힌다 — Hero.TickActive)
+                bool free = CursorFree;
+                var lockMode = free ? CursorLockMode.None : CursorLockMode.Locked;
+                if (Cursor.lockState != lockMode) { Cursor.lockState = lockMode; Cursor.visible = free; }
+                if (Mouse.current != null && !free)
                 {
                     Vector2 delta = Mouse.current.delta.ReadValue();
                     _yaw += delta.x * mouseSensitivity;
@@ -178,13 +191,17 @@ namespace TowerDefense.Hero
             }
 
             if (_pos == Vector3.zero) _pos = transform.position;
-            _pos = Vector3.SmoothDamp(_pos, targetPosition, ref _velocity, smoothTime);
+            // 3인칭에서는 보간하지 않는다: 카메라가 마우스를 뒤늦게 출렁이며 따라가면 어지럽다(2026-09-27).
+            // 부드러운 보간은 시점이 바뀌는 순간(절벽 ↔ 3인칭)에만 쓴다
+            bool follow = hero.State == HeroState.Active && Time.time >= _blendUntil;
+            if (follow) { _pos = targetPosition; _velocity = Vector3.zero; }
+            else _pos = Vector3.SmoothDamp(_pos, targetPosition, ref _velocity, smoothTime);
             // 가림은 보간이 끝난 위치에 건다: 보간을 기다리면 그동안 포탑 안이 보인다
             Vector3 pos = hero.State == HeroState.Active ? AvoidOcclusion(pivot, _pos) : _pos;
             float k = Mathf.Clamp01((_shakeUntil - Time.time) / Mathf.Max(0.0001f, shakeSec));
             transform.position = pos + Random.insideUnitSphere * (shakeAmp * k * k);
 
-            float t = 1f - Mathf.Exp(-Time.deltaTime / Mathf.Max(smoothTime, 0.0001f));
+            float t = follow ? 1f : 1f - Mathf.Exp(-Time.deltaTime / Mathf.Max(smoothTime, 0.0001f));
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, t);
         }
 
