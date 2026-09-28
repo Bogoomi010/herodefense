@@ -115,13 +115,14 @@ namespace TowerDefense.Hero
 
         HeroInteractor _interactor;
 
-        /// <summary>필드 시점에서 커서를 풀어야 하는가: Alt를 누르는 중이거나 업그레이드 방향 선택 창이 열려 있다</summary>
+        /// <summary>필드 시점에서 커서를 풀어야 하는가: Alt를 누르는 중이거나, 업그레이드 방향 선택 창이 열려 있거나, 스테이지가 끝나 정산 창이 떠 있다</summary>
         public bool CursorFree
         {
             get
             {
                 if (_interactor == null && hero != null) _interactor = hero.GetComponent<HeroInteractor>();
                 var kb = Keyboard.current;
+                if (hero != null && hero.session != null && hero.session.Over) return true;
                 return (kb != null && (kb.leftAltKey.isPressed || kb.rightAltKey.isPressed)) || (_interactor != null && _interactor.IsChoosing);
             }
         }
