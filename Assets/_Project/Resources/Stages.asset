@@ -15,6 +15,7 @@ MonoBehaviour:
   stages:
   - sceneName: Stage_01
     starTimeSec: 480
+    hpMul: 0.5
     creeps:
     - sheep
     boss: 
@@ -22,6 +23,7 @@ MonoBehaviour:
     clearSkillPoints: 1
   - sceneName: Stage_02
     starTimeSec: 480
+    hpMul: 0.5
     creeps:
     - sheep
     - pig
@@ -30,6 +32,7 @@ MonoBehaviour:
     clearSkillPoints: 1
   - sceneName: Stage_03
     starTimeSec: 480
+    hpMul: 0.5
     creeps:
     - sheep
     - pig
@@ -39,6 +42,7 @@ MonoBehaviour:
     clearSkillPoints: 1
   - sceneName: Stage_04
     starTimeSec: 480
+    hpMul: 0.5
     creeps:
     - sheep
     - pig

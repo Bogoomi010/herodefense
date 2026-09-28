@@ -80,7 +80,7 @@ namespace TowerDefense.Game
             Stage = n > 0 ? n : 1;
             Def = (StageList.Instance != null ? StageList.Instance.Get(Stage) : null) ?? new StageDef();
             MobDefs.Difficulty = Profile.difficulty; // 저장 슬롯을 만들 때 고정
-            MobDefs.StageHpMul = StageRules.StageHpMul(Stage);
+            MobDefs.StageHpMul = StageRules.StageHpMul(Stage) * Def.hpMul;
             Bonuses = SkillTreeDef.LoadOrEmpty().Bonuses(Profile);
             Economy = new Economy(new Mods(), GameConfig.StartGold + Bonuses.StartGold);
         }
