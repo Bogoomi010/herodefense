@@ -97,3 +97,107 @@
     font-size: 18px;
     color: rgb(242, 235, 221);
 }
+
+/* 영웅 고르기 (docs/HERO.md) */
+.hero-row {
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    margin-top: 12px;
+}
+
+.hero-pick {
+    width: 170px;
+    margin: 0 8px;
+    padding: 10px;
+    border-width: 3px;
+    font-size: 18px;
+}
+
+.hero-pick.chosen {
+    border-color: rgb(255, 210, 110);
+    -unity-font-style: bold;
+}
+
+/* 스킬 메뉴 탭 (docs/SKILL_MENU.md) */
+.skills-tabs {
+    flex-direction: row;
+    margin-bottom: 16px;
+}
+
+.skills-tab {
+    margin: 0 10px 0 0;
+    font-size: 20px;
+    padding: 8px 18px;
+}
+
+.skills-tab.active {
+    border-color: rgb(255, 210, 110);
+    background-color: rgba(255, 210, 110, 0.18);
+}
+
+.hero-skills {
+    flex-grow: 1;
+    flex-direction: column;
+    margin-bottom: 12px;
+}
+
+.hero-skills .hero-pick {
+    width: 150px;
+    font-size: 16px;
+    padding: 6px;
+    margin: 0 10px 0 0;
+}
+
+.skill-cards {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin: 16px 0;
+}
+
+.skill-card {
+    width: 200px;
+    height: 110px;
+    margin: 0 12px 12px 0;
+    border-width: 2px;
+    border-radius: 10px;
+    font-size: 15px;
+    white-space: normal;
+    -unity-text-align: middle-center;
+    color: rgb(242, 235, 221);
+    background-color: rgb(70, 45, 40);
+    border-color: rgb(200, 150, 90);
+}
+
+.skill-card.learned {
+    background-color: rgb(120, 80, 30);
+    border-color: rgb(255, 200, 90);
+}
+
+.skill-card.locked {
+    background-color: rgb(30, 26, 24);
+    border-color: rgb(70, 62, 55);
+    color: rgb(110, 100, 90);
+}
+
+.skill-card.selected {
+    border-width: 4px;
+    border-color: rgb(255, 255, 255);
+}
+
+.skill-detail {
+    font-size: 17px;
+    white-space: normal;
+    color: rgb(242, 235, 221);
+    margin-bottom: 10px;
+}
+
+.skill-actions {
+    flex-direction: row;
+}
+
+.skill-actions .menu-button {
+    margin: 0 10px 0 0;
+    font-size: 17px;
+    padding: 8px 16px;
+}

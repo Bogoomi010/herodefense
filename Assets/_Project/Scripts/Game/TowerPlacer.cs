@@ -186,6 +186,7 @@ namespace TowerDefense.Game
             PlaceResult.NotGround => "녹색 지대가 아님",
             PlaceResult.Tree => "나무가 있음",
             PlaceResult.TooClose => "다른 포탑과 너무 가까움",
+            PlaceResult.TooMany => $"포탑은 최대 {PlacementRules.MaxTowers}개",
             _ => "설치 가능",
         };
     }

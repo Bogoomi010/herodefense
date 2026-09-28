@@ -35,6 +35,12 @@ namespace TowerDefense.Game
         private const float ReturnWindow = 3f;
         private float _landStunMs;   // 착지하는 순간 걸 스턴 (0이면 뒤집히지 않는다)
         private bool _flipped;       // 뒤집혀 누워 있는 중 (공중 포함)
+
+        // 걷기 애니메이션 (Tools/Blender/make_farm.py "Walk", 1초 주기). 실제 이동 속도에 맞춰 재생 속도를 바꾼다
+        private AnimationState _walk;
+        private const float WalkStride = 1.6f;   // 크기 1일 때 한 주기에 나아가는 거리(m) — 발이 미끄러져 보이면 조정
+        private const float FlailSpeed = 2.5f;   // 날아가거나 뒤집혀 있을 때 버둥거리는 빠르기
+        private const float MaxWalkSpeed = 4f;
         private float _roll;         // 앞뒤 축 기울기 (도). 180 = 뒤집힘
         private Quaternion _yaw = Quaternion.identity;
         private const float FlipSpeed = 540f, RightSpeed = 1440f; // 뒤집힘 / 일어남 (도/초)
@@ -43,11 +49,13 @@ namespace TowerDefense.Game
         private float _yOffset;
         private readonly List<(Renderer r, int slot)> _tint = new List<(Renderer, int)>();
         private readonly List<(Renderer r, int slot)> _allSlots = new List<(Renderer, int)>();
-        // 피격 번쩍임: HP가 줄면 몸 전체가 잠깐 빨개진다. 독처럼 매 프레임 줄어드는 피해는 FlashGap마다 한 번씩 깜빡인다
+        // 피격 번쩍임: 피해를 주는 쪽(EnemySpawner)이 Flash를 부른다. 직접 피해는 빨강(맞을 때마다),
+        // 독 지속 피해는 초록(매 프레임 들어오므로 FlashGap마다 한 번)
         private const float FlashSec = 0.12f, FlashGap = 0.35f;
-        private static readonly Color FlashColor = new Color(1f, 0.12f, 0.1f);
+        private static readonly Color HitColor = new Color(1f, 0.12f, 0.1f), PoisonColor = new Color(0.25f, 0.95f, 0.2f);
         private static MaterialPropertyBlock _clearMpb;
-        private float _lastHp, _flashUntil, _nextFlashAt;
+        private float _flashUntil, _nextPoisonFlashAt;
+        private Color _flashColor = HitColor;
         private bool _flashing;
         private MaterialPropertyBlock _mpb;
         private Color _baseColor;
@@ -111,15 +119,187 @@ namespace TowerDefense.Game
             }
 
             var view = go.AddComponent<EnemyView>();
+            var anim = go.GetComponentInChildren<Animation>();
+            if (anim != null && anim.clip != null)
+            {
+                view._walk = anim[anim.clip.name];
+                view._walk.wrapMode = WrapMode.Loop;
+                anim.Play();
+                view._walk.normalizedTime = Random.value; // 무리가 발을 맞춰 걷지 않게
+            }
             view._session = session;
             view.Init(state, session.Path, yOffset, tint, all);
+            view.BuildHpBar();
+            view.BuildStun();
             return view;
+        }
+
+        // ---------- HP 바: 머리 위, 항상 카메라(사용자 시점) 정면을 향한다 ----------
+
+        private const float BarW = 1.2f, BarH = 0.15f, BarGap = 0.4f;
+        private static Material _barBgMat, _barFillMat;
+        private Transform _bar, _barFill;
+
+        private void BuildHpBar()
+        {
+            if (_barBgMat == null)
+            {
+                var sh = Shader.Find("Universal Render Pipeline/Unlit");
+                _barBgMat = new Material(sh) { color = new Color(0.1f, 0.1f, 0.1f) };
+                _barFillMat = new Material(sh) { color = new Color(0.85f, 0.15f, 0.1f) };
+            }
+            _bar = new GameObject("HpBar").transform;
+            _bar.SetParent(transform, false);
+            BarQuad(_barBgMat).localScale = new Vector3(BarW, BarH, 1f);
+            _barFill = BarQuad(_barFillMat);
+        }
+
+        private Transform BarQuad(Material mat)
+        {
+            var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            Destroy(q.GetComponent<Collider>());
+            var r = q.GetComponent<Renderer>();
+            r.sharedMaterial = mat;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            q.transform.SetParent(_bar, false);
+            return q.transform;
+        }
+
+        private void LateUpdate()
+        {
+            var cam = Camera.main;
+            if (cam == null) return;
+            // 발 기준으로 올린다 — 뒤집혀도 바는 머리 위 같은 높이
+            _bar.position = _feet + Vector3.up * (BaseHeight * State.Scale + BarGap);
+            _bar.rotation = cam.transform.rotation;
+            _bar.localScale = Vector3.one / transform.lossyScale.x; // 몹 크기와 무관하게 월드 크기 고정
+            float t = Mathf.Clamp01(State.Hp / State.MaxHp);
+            _barFill.localScale = new Vector3(BarW * t, BarH, 1f);
+            _barFill.localPosition = new Vector3(-BarW * (1f - t) * 0.5f, 0f, -0.01f); // 왼쪽 정렬, 배경보다 카메라 쪽
+            TickStun();
+        }
+
+        // ---------- 스턴 별: 스턴 동안 머리 위에서 별 3개가 수평으로 돈다 (docs/VFX_STUN.md) ----------
+
+        private const float StarOrbit = 0.45f, StarSize = 0.18f, StarAbove = 0.6f; // 크기 1 기준 (m)
+        private const float OrbitDegPerSec = 400f, SpinDegPerSec = 600f;          // 궤도 0.9초 / 제자리 0.6초에 한 바퀴
+        private const float PopInSec = 0.1f, PopOutSec = 0.15f;
+        private const float FlippedStarHeight = 0.85f; // 뒤집혔을 때 별 높이 (몸 높이 비율). 위로 뻗은 다리 끝 조금 아래
+        private const float RingWidth = 0.03f; // 별을 잇는 궤도 원 두께 (m)
+        private const int RingSegments = 40;
+        private static Mesh _starMesh;
+        private static Material _starMat, _ringMat;
+        private Transform _stun, _head;
+        private LineRenderer _ring;
+        private readonly Transform[] _stars = new Transform[3];
+        private float _pop, _nowMs;
+
+        private void BuildStun()
+        {
+            if (_starMesh == null)
+            {
+                _starMesh = StarMesh();
+                _starMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                _starMat.SetColor(BaseColorId, new Color(1f, 0.82f, 0.2f));
+                _starMat.EnableKeyword("_EMISSION"); // 뒤집혀 그늘진 쪽에서도 보이게
+                _starMat.SetColor("_EmissionColor", new Color(1f, 0.7f, 0.1f) * 0.6f);
+                _ringMat = new Material(Shader.Find("Universal Render Pipeline/Unlit")) { color = new Color(1f, 0.88f, 0.45f) };
+            }
+            foreach (var t in GetComponentsInChildren<Transform>(true))
+                if (t.name == "Head") { _head = t; break; } // make_farm.py 리그의 머리 본. 없으면(캡슐) 몸 위
+            _stun = new GameObject("Stun").transform;
+            _stun.SetParent(transform, false);
+            for (int i = 0; i < 3; i++)
+            {
+                var s = new GameObject("Star", typeof(MeshFilter), typeof(MeshRenderer)).transform;
+                s.GetComponent<MeshFilter>().sharedMesh = _starMesh;
+                var r = s.GetComponent<MeshRenderer>();
+                r.sharedMaterial = _starMat;
+                r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                s.SetParent(_stun, false);
+                s.localScale = Vector3.one * StarSize;
+                _stars[i] = s;
+            }
+            // 별들을 잇는 궤도 원: 피벗 로컬 좌표라 같이 돌고 커진다. 선은 늘 카메라를 향한다
+            _ring = new GameObject("Ring").AddComponent<LineRenderer>();
+            _ring.transform.SetParent(_stun, false);
+            _ring.useWorldSpace = false;
+            _ring.loop = true;
+            _ring.sharedMaterial = _ringMat;
+            _ring.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            _ring.positionCount = RingSegments;
+            for (int i = 0; i < RingSegments; i++)
+            {
+                float a = i * Mathf.PI * 2f / RingSegments;
+                _ring.SetPosition(i, new Vector3(Mathf.Cos(a) * StarOrbit, 0f, Mathf.Sin(a) * StarOrbit));
+            }
+            _stun.gameObject.SetActive(false);
+        }
+
+        private void TickStun()
+        {
+            bool stunned = State.IsStunned(_nowMs);
+            _pop = Mathf.MoveTowards(_pop, stunned ? 1f : 0f, Time.deltaTime / (stunned ? PopInSec : PopOutSec));
+            _stun.gameObject.SetActive(_pop > 0f);
+            if (_pop <= 0f) return;
+
+            float k = State.Scale;
+            // 서 있으면 머리 위. 뒤집혀 누우면 머리가 땅 쪽이라 몸에 가리므로, 하늘을 향한 배(모델 하단) 위 다리 사이에 띄운다.
+            // 궤도는 늘 월드 수평
+            _stun.position = _roll > 90f ? _feet + Vector3.up * (BaseHeight * k * FlippedStarHeight)
+                : (_head != null ? _head.position : _feet + Vector3.up * (BaseHeight * k * 0.9f)) + Vector3.up * (StarAbove * k);
+            _stun.rotation = Quaternion.Euler(0f, Time.time * OrbitDegPerSec, 0f);
+            float pop = stunned ? _pop + 0.15f * Mathf.Sin(_pop * Mathf.PI) : _pop; // 나올 땐 톡 튀어나온다
+            _stun.localScale = Vector3.one * (k * pop / transform.lossyScale.x);
+            _ring.widthMultiplier = RingWidth * k * pop; // 선 두께는 스케일을 따르지 않는다
+            for (int i = 0; i < 3; i++)
+            {
+                float a = i * 120f * Mathf.Deg2Rad;
+                _stars[i].localPosition = new Vector3(Mathf.Cos(a) * StarOrbit, 0.03f * Mathf.Sin(Time.time * 8f + i * 2.1f), Mathf.Sin(a) * StarOrbit);
+                _stars[i].localRotation = Quaternion.Euler(0f, Time.time * SpinDegPerSec, 0f);
+            }
+        }
+
+        /// <summary>두께 있는 오각 별 (반지름 1, xy 평면). 앞뒤 면 부채꼴 + 옆면</summary>
+        private static Mesh StarMesh()
+        {
+            const float Inner = 0.45f, Depth = 0.15f;
+            var v = new List<Vector3>();
+            var tri = new List<int>();
+            Vector3 Rim(int i)
+            {
+                float a = Mathf.PI * 0.5f + i * Mathf.PI / 5f, r = i % 2 == 0 ? 1f : Inner;
+                return new Vector3(Mathf.Cos(a) * r, Mathf.Sin(a) * r, 0f);
+            }
+            foreach (float z in new[] { -Depth, Depth })
+            {
+                int c = v.Count;
+                v.Add(new Vector3(0f, 0f, z));
+                for (int i = 0; i < 10; i++) v.Add(Rim(i) + Vector3.forward * z);
+                for (int i = 0; i < 10; i++)
+                {
+                    int a = c + 1 + i, b = c + 1 + (i + 1) % 10;
+                    if (z < 0f) tri.AddRange(new[] { c, b, a }); else tri.AddRange(new[] { c, a, b });
+                }
+            }
+            for (int i = 0; i < 10; i++) // 옆면은 꼭짓점을 따로 둬서 각지게
+            {
+                Vector3 a = Rim(i), b = Rim((i + 1) % 10), f = Vector3.back * Depth;
+                int c = v.Count;
+                v.AddRange(new[] { a + f, b + f, b - f, a - f });
+                tri.AddRange(new[] { c, c + 1, c + 2, c, c + 2, c + 3 });
+            }
+            var m = new Mesh { name = "Star" };
+            m.SetVertices(v);
+            m.SetTriangles(tri, 0);
+            m.RecalculateNormals();
+            m.RecalculateBounds();
+            return m;
         }
 
         private void Init(MobState state, PathFollower path, float yOffset, List<(Renderer, int)> tint, List<(Renderer, int)> all)
         {
             _allSlots.AddRange(all);
-            _lastHp = state.Hp;
             State = state;
             _path = path;
             _yOffset = yOffset;
@@ -136,6 +316,7 @@ namespace TowerDefense.Game
         public void Tick(float nowMs, float deltaMs, float speedMul)
         {
             float dt = deltaMs / 1000f;
+            _nowMs = nowMs;
             switch (Mode)
             {
                 case Move.Path: TickPath(nowMs, deltaMs, speedMul, dt); break;
@@ -143,12 +324,6 @@ namespace TowerDefense.Game
                 case Move.Return: TickReturn(nowMs, speedMul, dt); break;
             }
             Place(dt);
-            if (State.Hp < _lastHp - 1e-3f && Time.time >= _nextFlashAt)
-            {
-                _flashUntil = Time.time + FlashSec;
-                _nextFlashAt = Time.time + FlashGap;
-            }
-            _lastHp = State.Hp;
             ApplyColor(Mathf.Clamp01(State.Hp / State.MaxHp));
         }
 
@@ -229,6 +404,13 @@ namespace TowerDefense.Game
             var pos = _feet + Vector3.up * _yOffset;
             transform.position = pos;
             var move = pos - prev;
+            if (_walk != null && dt > 0f)
+            {
+                var flat = new Vector3(move.x, 0f, move.z);
+                // 애니메이션은 실제 시간으로 재생되므로 실제 시간당 이동으로 나눈다 (배속을 켜면 다리도 그만큼 빨리)
+                float realDt = Mathf.Max(Time.deltaTime, 1e-4f);
+                _walk.speed = _flipped ? FlailSpeed : Mathf.Min(MaxWalkSpeed * 2f, flat.magnitude / realDt / (WalkStride * State.Scale)); // 멈추면(스턴) 0
+            }
             move.y = 0f;
             var face = Mode == Move.Path ? _path.DirAt(DistWorld) : move;
             face.y = 0f;
@@ -245,11 +427,38 @@ namespace TowerDefense.Game
             transform.rotation = _yaw * Quaternion.Euler(0f, 0f, _roll);
         }
 
+        /// <summary>
+        /// 처치됨: 세션 목록에서 빠진 뒤 호출. 막타도 피격으로 보이게 몸 전체를 빨갛게 번쩍이고(FlashSec) 사라진다.
+        /// 한 방에 죽는 크립(영웅 공격 등)은 이게 없으면 빨개질 틈 없이 사라진다.
+        /// </summary>
+        /// <summary>피해를 입었다: 몸 전체를 잠깐 빨강(직접 피해) 또는 초록(독)으로.</summary>
+        public void Flash(bool poison)
+        {
+            if (poison)
+            {
+                if (Time.time < _nextPoisonFlashAt || Time.time < _flashUntil) return; // 빨강을 덮지 않는다
+                _nextPoisonFlashAt = Time.time + FlashGap;
+            }
+            _flashColor = poison ? PoisonColor : HitColor;
+            _flashUntil = Time.time + FlashSec;
+        }
+
+        public void Die(bool poison = false)
+        {
+            enabled = false;
+            _bar.gameObject.SetActive(false);
+            _stun.gameObject.SetActive(false);
+            _mpb.SetColor(BaseColorId, poison ? PoisonColor : HitColor);
+            foreach (var (r, slot) in _allSlots) r.SetPropertyBlock(_mpb, slot);
+            if (_walk != null) _walk.speed = 0f;
+            Destroy(gameObject, FlashSec);
+        }
+
         private void ApplyColor(float hpRatio)
         {
             if (Time.time < _flashUntil)
             {
-                _mpb.SetColor(BaseColorId, FlashColor);
+                _mpb.SetColor(BaseColorId, _flashColor);
                 foreach (var (r, slot) in _allSlots) r.SetPropertyBlock(_mpb, slot);
                 _flashing = true;
                 return;

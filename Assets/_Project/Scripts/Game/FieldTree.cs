@@ -23,7 +23,7 @@ namespace TowerDefense.Game
 
         public Vector3 Position => transform.position;
         public float InteractRadius => interactRadius;
-        public string Prompt => "E: 나무 베기";
+        public string Prompt => "F: 나무 베기";
         public bool IsAlive => this != null && isActiveAndEnabled;
         public Circle Footprint => new Circle(transform.position.x, transform.position.z, footprintRadius);
 

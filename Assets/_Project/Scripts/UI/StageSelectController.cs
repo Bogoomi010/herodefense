@@ -38,6 +38,7 @@ namespace TowerDefense.UI
             _root.Q<Button>("page-prev").clicked += () => ShowPage(_page - 1);
             _root.Q<Button>("page-next").clicked += () => ShowPage(_page + 1);
             SetupSkills();
+            HeroPicker.Build(_root.Q<VisualElement>("hero-row"), _profile);
 
             // 가장 최근에 열린 스테이지가 있는 페이지부터
             int frontier = 1;
@@ -79,21 +80,60 @@ namespace TowerDefense.UI
             return cell;
         }
 
-        /// <summary>스킬트리는 튜토리얼을 마친 뒤에만 열린다 (docs/PLAYER_SKILL_TREE.md).</summary>
+        /// <summary>
+        /// 스킬 메뉴 (docs/SKILL_MENU.md): 탭 두 개(플레이어 스킬트리 | 영웅 기술), 포인트는 함께 쓴다. 튜토리얼을 마친 뒤에만 열린다.
+        /// 초기화는 보고 있는 탭만. 쓰지 않은 포인트가 있으면 "스킬" 버튼에 점.
+        /// </summary>
         private void SetupSkills()
         {
             var btn = _root.Q<Button>("btn-skills");
             if (!_profile.tutorialDone || _skills == null) return;
             btn.RemoveFromClassList("hidden");
-            var view = new SkillTreeView(_root.Q<VisualElement>("skills-viewport"), _root.Q<Label>("skills-info"), _root.Q<Label>("skills-desc"), _profile);
-            btn.clicked += () => _skills.RemoveFromClassList("hidden");
-            _root.Q<Button>("skills-reset").clicked += view.ResetSkills;
-            _root.Q<Button>("skills-back").clicked += () =>
+            var info = _root.Q<Label>("skills-info");
+            var viewport = _root.Q<VisualElement>("skills-viewport");
+            var heroPane = _root.Q<VisualElement>("hero-skills");
+            var desc = _root.Q<Label>("skills-desc");
+            var tabPlayer = _root.Q<Button>("tab-player");
+            var tabHero = _root.Q<Button>("tab-hero");
+
+            void UpdateHeader()
             {
-                _skills.AddToClassList("hidden");
+                info.text = $"Lv {_profile.level}  ·  경험치 {_profile.exp}/{PlayerProfile.ExpToNext(_profile.level)}  ·  스킬 포인트 {_profile.skillPoints}";
+                btn.text = _profile.skillPoints > 0 ? "스킬 ●" : "스킬";
                 _root.Q<Label>("slot-info").text =
                     $"슬롯 {ProfileStore.Current + 1} · {MainMenuController.DifficultyName(_profile.difficulty)} · Lv {_profile.level} · 스킬 포인트 {_profile.skillPoints}";
+            }
+
+            var tree = new SkillTreeView(viewport, info, desc, _profile);
+
+            var heroes = new HeroSkillsView(heroPane, _profile, () => { tree.Refresh(); UpdateHeader(); });
+            bool heroTab = PlayerPrefs.GetInt("SkillTab", 0) == 1; // 마지막으로 본 탭
+
+            void ShowTab(bool hero)
+            {
+                heroTab = hero;
+                PlayerPrefs.SetInt("SkillTab", hero ? 1 : 0);
+                viewport.EnableInClassList("hidden", hero);
+                desc.EnableInClassList("hidden", hero);
+                heroPane.EnableInClassList("hidden", !hero);
+                tabPlayer.EnableInClassList("active", !hero);
+                tabHero.EnableInClassList("active", hero);
+                tree.Refresh();
+                heroes.Refresh();
+                UpdateHeader();
+            }
+
+            tabPlayer.clicked += () => ShowTab(false);
+            tabHero.clicked += () => ShowTab(true);
+            btn.clicked += () => { _skills.RemoveFromClassList("hidden"); ShowTab(heroTab); };
+            _root.Q<Button>("skills-reset").clicked += () =>
+            {
+                if (heroTab) heroes.ResetHero();
+                else { tree.ResetSkills(); heroes.Refresh(); }
+                UpdateHeader();
             };
+            _root.Q<Button>("skills-back").clicked += () => { _skills.AddToClassList("hidden"); UpdateHeader(); };
+            UpdateHeader();
         }
     }
 

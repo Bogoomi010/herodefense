@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TowerDefense.Core;
 using TowerDefense.Game;
 using UnityEngine;
@@ -6,7 +7,7 @@ using UnityEngine.InputSystem;
 namespace TowerDefense.Hero
 {
     /// <summary>
-    /// 영웅 상호작용 (docs/HERO_INTERACTION.md): 범위 안 가장 가까운 대상 → E → 진행 → 범위를 벗어나면 취소(진행도 0).
+    /// 영웅 상호작용 (docs/HERO_INTERACTION.md): 범위 안 가장 가까운 대상 → F → 진행 → 범위를 벗어나면 취소(진행도 0).
     /// 나무는 바로 베기 시작, 포탑은 방향 선택(1/2/3) 후 업그레이드 시작.
     /// 업그레이드 골드는 시작할 때 잔액을 확인하고 완료할 때 낸다 — 취소하면 골드를 잃지 않는다.
     /// </summary>
@@ -93,7 +94,7 @@ namespace TowerDefense.Hero
             _near = Nearest();
             if (_choosing != null)
             {
-                if (_near != (IHeroInteractable)_choosing || (kb != null && (kb.escapeKey.wasPressedThisFrame || kb.eKey.wasPressedThisFrame))) { _choosing = null; return; }
+                if (_near != (IHeroInteractable)_choosing || (kb != null && (kb.escapeKey.wasPressedThisFrame || kb.fKey.wasPressedThisFrame))) { _choosing = null; return; }
                 if (kb == null) return;
                 if (kb.digit1Key.wasPressedThisFrame) StartUpgrade(UpgradeBranch.AtkSpeed);
                 else if (kb.digit2Key.wasPressedThisFrame) StartUpgrade(UpgradeBranch.Power);
@@ -101,10 +102,10 @@ namespace TowerDefense.Hero
                 return;
             }
 
-            if (kb != null && kb.eKey.wasPressedThisFrame) Interact();
+            if (kb != null && kb.fKey.wasPressedThisFrame) Interact();
         }
 
-        /// <summary>E: 가까운 나무는 베기 시작, 포탑은 방향 선택 창을 연다.</summary>
+        /// <summary>F: 가까운 나무는 베기 시작, 포탑은 방향 선택 창을 연다.</summary>
         public void Interact()
         {
             if (_target != null || _choosing != null) return;
@@ -213,8 +214,8 @@ namespace TowerDefense.Hero
 
             if (_target != null)
             {
-                var p = OverHead(_target);
-                var box = new Rect(p.x - 110, p.y - 50, 220, 50);
+                // 진행 표시는 화면 가운데 위에 고정 (별·시간 칸과 그 아래 메시지 줄 밑)
+                var box = new Rect(cx - 110, Hud.TopCenter.yMax + 48, 220, 50);
                 Hud.Panel(box);
                 string what = _target is FieldTree ? "나무 베기" : $"{BranchNames[(int)_branch]} 업그레이드";
                 GUI.Label(new Rect(box.x, box.y + 4, box.width, 22), $"{what} · {_duration - _progress:0.0}초", Hud.Text(15, TextAnchor.MiddleCenter));
@@ -251,7 +252,7 @@ namespace TowerDefense.Hero
             {
                 case HeroState.Perched:
                     float left = _hero.DescendCooldownLeft, total = _hero.DescendCooldownTotal;
-                    GUI.Label(new Rect(r.x + 12, r.y + 4, r.width - 24, 26), "영웅 강림", title);
+                    GUI.Label(new Rect(r.x + 12, r.y + 4, r.width - 24, 26), $"{Heroes.Name(_hero.Kind)} 강림", title);
                     Hud.Bar(bar, total > 0f ? 1f - left / total : 1f, left > 0f ? Hud.Dim : Hud.Gold);
                     GUI.Label(new Rect(r.x + 12, r.y + 42, r.width - 24, 20), left > 0f ? $"대기 {left:0}초" : "Ctrl+클릭으로 필드에 내려가기", sub);
                     break;
@@ -260,7 +261,7 @@ namespace TowerDefense.Hero
                     break;
                 case HeroState.Active:
                     float back = _hero.ReturnCooldownLeft;
-                    GUI.Label(new Rect(r.x + 12, r.y + 4, r.width - 24, 26), "영웅 · 필드", title);
+                    GUI.Label(new Rect(r.x + 12, r.y + 4, r.width - 24, 26), $"{Heroes.Name(_hero.Kind)} · 필드", title);
                     Hud.Bar(bar, 1f - back / Mathf.Max(0.01f, _hero.returnCooldownSec), back > 0f ? Hud.Dim : Hud.Good);
                     GUI.Label(new Rect(r.x + 12, r.y + 42, r.width - 24, 20), back > 0f ? $"귀환 가능까지 {back:0}초" : "T로 절벽에 돌아가기", sub);
                     break;
@@ -270,24 +271,52 @@ namespace TowerDefense.Hero
         /// <summary>필드 시점 아래 줄: 포탑 줄 대신 영웅 행동 키. 쓸 수 없는 키는 흐리게.</summary>
         private void DrawActionBar()
         {
-            var r = Hud.BottomBar;
             float back = _hero.ReturnCooldownLeft;
-            var slots = new[]
+            bool gunner = _hero.Kind == HeroKind.Gunner;
+            var slots = new List<(string key, string label, bool on)>();
+            if (gunner)
             {
-                ("좌클릭", "공격", true),
-                ("E", _near is FieldTree ? "나무 베기" : _near is Tower ? "업그레이드" : "상호작용", _near != null && _target == null),
-                ("T", back > 0f ? $"귀환 {back:0}초" : "귀환", back <= 0f),
-            };
-            float w = (r.width - 12f) / slots.Length;
-            var style = Hud.Text(15, TextAnchor.MiddleCenter);
-            for (int i = 0; i < slots.Length; i++)
+                float rl = _hero.ReloadLeft;
+                string ammo = rl > 0f ? $"장전 {rl:0.0}초" : $"탄 {_hero.Ammo}/{_hero.magSize}";
+                Color ac = rl > 0f || _hero.Ammo == 0 ? Hud.Bad : _hero.Ammo <= 2 ? new Color(1f, 0.85f, 0.3f) : Color.white;
+                slots.Add(("좌클릭", $"<color={Hud.Hex(ac)}>{ammo}</color>", rl <= 0f));
+                slots.Add(("R", "장전", rl <= 0f && _hero.Ammo < _hero.magSize));
+            }
+            else slots.Add(("좌클릭", "공격", true));
+            // 영웅 기술 Q·E: 빈 칸은 숨긴다 (docs/SKILL_MENU.md)
+            var skills = GetComponent<HeroSkills>();
+            for (int i = 0; skills != null && i < 2; i++)
+            {
+                var s = skills.Slot(i);
+                if (s == null) continue;
+                float cd = skills.CooldownLeft(i);
+                slots.Add((HeroSkills.Keys[i], cd > 0f ? $"{s.name} {cd:0}" : s.name, cd <= 0f));
+            }
+            slots.Add(("Space", "점프", !_hero.Airborne));
+            slots.Add(("Alt", "커서", true));
+            slots.Add(("F", _near is FieldTree ? "나무 베기" : _near is Tower ? "업그레이드" : "상호작용", _near != null && _target == null));
+            slots.Add(("T", back > 0f ? $"귀환 {back:0}초" : "귀환", back <= 0f));
+
+            const float w = 84f, gap = 6f;
+            float total = slots.Count * w + (slots.Count - 1) * gap;
+            var r = new Rect(Screen.width / 2f - total / 2f, Hud.BottomBar.y, total, Hud.BottomBar.height);
+            var style = Hud.Text(14, TextAnchor.MiddleCenter);
+            for (int i = 0; i < slots.Count; i++)
             {
                 var (key, label, on) = slots[i];
-                var s = new Rect(r.x + i * (w + 6f), r.y, w, r.height);
+                var s = new Rect(r.x + i * (w + gap), r.y, w, r.height);
                 Hud.Panel(s);
-                if (on && i > 0) Hud.Frame(s, Color.white);
+                if (on && key == "F") Hud.Frame(s, Color.white); // 지금 할 수 있는 상호작용을 강조
                 string c = Hud.Hex(on ? Color.white : Hud.Dim);
                 GUI.Label(s, $"<color={c}><size=12>{key}</size>\n{label}</color>", style);
+            }
+
+            if (gunner) // 조준선: 화면 가운데 작은 십자, 장전 중엔 흐리게
+            {
+                float cx = Screen.width / 2f, cy = Screen.height / 2f;
+                var cc = _hero.ReloadLeft > 0f ? Hud.Dim : Color.white;
+                Hud.Fill(new Rect(cx - 9, cy - 1, 18, 2), cc);
+                Hud.Fill(new Rect(cx - 1, cy - 9, 2, 18), cc);
             }
         }
 
@@ -317,7 +346,7 @@ namespace TowerDefense.Hero
                 }
                 if (GUI.Button(new Rect(box.x + 14 + i * 174, box.y + 38, 164, 84), label, btn)) StartUpgrade(b);
             }
-            GUI.Label(new Rect(box.x + 14, box.yMax - 32, box.width - 28, 26), "범위를 벗어나면 취소 · 골드는 완료할 때 냄 · E/ESC 닫기", Hud.Text(13));
+            GUI.Label(new Rect(box.x + 14, box.yMax - 32, box.width - 28, 26), "범위를 벗어나면 취소 · 골드는 완료할 때 냄 · F/ESC 닫기", Hud.Text(13));
         }
     }
 }

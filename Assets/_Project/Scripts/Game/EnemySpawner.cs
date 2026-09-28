@@ -106,7 +106,7 @@ namespace TowerDefense.Game
             float d = Time.deltaTime * 1000f * timeScale;
             GameTimeMs += d;
             var kb = Keyboard.current;
-            if (kb != null && kb.spaceKey.wasPressedThisFrame) Wave.StartNow();
+            if (kb != null && kb.spaceKey.wasPressedThisFrame && !HeroInField) Wave.StartNow(); // 필드 시점의 Space는 영웅 점프
             Wave.Update(d);
             if (Over) return;
 
@@ -118,11 +118,13 @@ namespace TowerDefense.Game
                 e.Tick(GameTimeMs, d, Mods.MobSpeedMul);
 
                 // 도트
+                float hpBefore = m.Hp;
                 if (Combat.DotTick(m, GameTimeMs, d))
                 {
-                    OnKilled(e);
+                    OnKilled(e, poison: true);
                     continue;
                 }
+                if (m.Hp < hpBefore) e.Flash(poison: true); // 독: 초록
 
                 if (!e.ReachedEnd) continue;
 
@@ -156,17 +158,22 @@ namespace TowerDefense.Game
         public bool Damage(EnemyView e, float amount, DmgType type)
         {
             if (Over || e == null || e.State.Dead) return false;
-            if (!Combat.Damage(e.State, amount, type, GameTimeMs, Mods)) return false;
+            if (!Combat.Damage(e.State, amount, type, GameTimeMs, Mods))
+            {
+                e.Flash(poison: false); // 직접 피해: 빨강
+                return false;
+            }
             OnKilled(e);
             return true;
         }
 
-        private void OnKilled(EnemyView e)
+        private void OnKilled(EnemyView e, bool poison = false)
         {
             var m = e.State;
             Kills++;
             Economy.RewardKill(m, GameTimeMs, Bonuses.GoldMul);
-            Remove(e);
+            _enemies.Remove(e);
+            if (e != null) e.Die(poison); // 막타도 번쩍인 뒤 사라진다 (독에 죽으면 초록)
 
             // 🗑 분열: 쓰레기 상위 몹은 죽으면 봉투 2개로 갈라진다
             if (m.Splits)
@@ -248,7 +255,7 @@ namespace TowerDefense.Game
             }
             var bossDef = MobDefs.BossStats(round, Def.boss);
             Message(boss ? $"라운드 {round} — 보스 {bossDef.Name}" : $"라운드 {round} — {string.Join("·", names)}");
-            if (boss) Introduce(MobDefs.BossStats(round, Def.boss).Id);
+            if (boss) Introduce(bossDef.Id);
         }
 
         // ---------- 새 크립 소개 카드 (docs/INGAME_UI.md) ----------
@@ -276,14 +283,12 @@ namespace TowerDefense.Game
                 _introUntil = GameTimeMs + IntroSec * 1000f;
             }
             var (name, desc) = MobDefs.Describe(_intros[0]).Value;
-            var r = new Rect(Hud.Pad, Hud.TopLeft.yMax + 12, 340, 86);
+            var r = Hud.IntroCard;
             Hud.Panel(r, 0.85f);
             Hud.Frame(r, Hud.Gold);
             GUI.Label(new Rect(r.x + 14, r.y + 6, r.width - 28, 22), $"<color={Hud.Hex(Hud.Gold)}>새 크립</color>", Hud.Text(14));
             GUI.Label(new Rect(r.x + 14, r.y + 28, r.width - 28, 26), name, Hud.Text(19));
-            var d = Hud.Text(14);
-            d.wordWrap = true;
-            GUI.Label(new Rect(r.x + 14, r.y + 54, r.width - 28, 30), desc, d);
+            GUI.Label(new Rect(r.x + 14, r.y + 54, r.width - 28, 30), desc, Hud.Text(14, TextAnchor.MiddleLeft, wrap: true));
         }
 
         public void RoundClear(int round)
@@ -435,6 +440,7 @@ namespace TowerDefense.Game
                 exp += Mathf.RoundToInt(rewardExp * Bonuses.ExpMul);
                 points = rewardPoints;
                 lines.AppendLine(first ? "처음 클리어 보상" : "다시 클리어 보상 (스킬 포인트 없음)");
+                if (first) foreach (var k in Heroes.UnlockedBy(Stage)) lines.AppendLine($"<color={Hud.Hex(Hud.Gold)}>새 영웅: {Heroes.Name(k)}</color> — 스테이지 선택에서 고를 수 있다");
             }
 
             int before = Profile.level;
@@ -460,7 +466,8 @@ namespace TowerDefense.Game
         {
             if (!showHud) return false;
             var p = new Vector2(mouse.x, Screen.height - mouse.y);
-            return Hud.TopLeft.Contains(p) || Hud.TopRight.Contains(p) || Hud.BottomBar.Contains(p) || Hud.HeroBox.Contains(p);
+            return Hud.TopLeft.Contains(p) || Hud.TopRight.Contains(p) || Hud.BottomBar.Contains(p) || Hud.HeroBox.Contains(p)
+                || (_intros.Count > 0 && Hud.IntroCard.Contains(p)); // 소개 카드를 누른 클릭이 설치로 새지 않게
         }
 
         /// <summary>남은 크립: 필드에 있는 크립 + 이번 웨이브에서 아직 나오지 않은 크립. 보스도 하나로 센다.</summary>
@@ -472,7 +479,7 @@ namespace TowerDefense.Game
             if (!showHud || Wave == null) return;
             var btn = new GUIStyle(GUI.skin.button) { fontSize = 15, richText = true };
             DrawTopBar(btn);
-            DrawIntro();
+            if (!Over) DrawIntro(); // 끝나면 게임 시계가 멈춰 카드가 영영 남으므로 그리지 않는다
             if (Over) { DrawSettlement(Hud.Text(20), new GUIStyle(GUI.skin.button) { fontSize = 16 }); return; }
             if (!HeroInField) DrawTowerBar(btn);
         }
@@ -519,7 +526,7 @@ namespace TowerDefense.Game
             {
                 string next = Wave.IsBossRound(Wave.Round + 1) ? " 보스" : "";
                 GUI.Label(new Rect(r.x + 10, y, 180, 28), $"다음 웨이브 {Wave.Round + 1}{next} · {Wave.TimeLeftSec}초", small);
-                if (GUI.Button(new Rect(r.xMax - 160, y, 150, 28), "지금 시작 (Space)", btn)) Wave.StartNow();
+                if (GUI.Button(new Rect(r.xMax - 160, y, 150, 28), HeroInField ? "지금 시작" : "지금 시작 (Space)", btn)) Wave.StartNow();
             }
             else GUI.Label(new Rect(r.x + 10, y, r.width - 20, 28), Wave.IsLastWave ? "마지막 웨이브" : $"웨이브 진행 중 · {Wave.TimeLeftSec}초", small);
             y += 32;
@@ -544,7 +551,7 @@ namespace TowerDefense.Game
             }
 
             string hint = Placer.Active
-                ? $"{Placer.Selected.displayName} 설치 · <color={Hud.Hex(Placer.LastResult == PlaceResult.Ok ? Hud.Good : Hud.Bad)}>{TowerPlacer.Describe(Placer.LastResult)}</color> · 우클릭 취소"
+                ? $"{Placer.Selected.displayName} 설치 ({Tower.All.Count}/{PlacementRules.MaxTowers}) · <color={Hud.Hex(Placer.LastResult == PlaceResult.Ok ? Hud.Good : Hud.Bad)}>{TowerPlacer.Describe(Placer.LastResult)}</color> · 우클릭 취소"
                 : "1~4 또는 B: 설치";
             var hs = Hud.Text(15, TextAnchor.MiddleCenter);
             float hw = hs.CalcSize(new GUIContent(hint)).x + 24f;
@@ -581,6 +588,7 @@ namespace TowerDefense.Game
         public static Rect TopRight => new Rect(Screen.width - 350 - Pad, Pad, 350, 102);
         public static Rect BottomBar => new Rect(Screen.width / 2f - 210, Screen.height - 64 - Pad, 420, 64);
         public static Rect HeroBox => new Rect(Pad, Screen.height - 64 - Pad, 250, 64);
+        public static Rect IntroCard => new Rect(Pad, TopLeft.yMax + 12, 340, 86);
 
         public static readonly Color Gold = new Color(0.98f, 0.78f, 0.46f), Dim = new Color(0.7f, 0.7f, 0.66f),
             Bad = new Color(0.94f, 0.58f, 0.58f), Good = new Color(0.6f, 0.85f, 0.4f);
@@ -610,11 +618,16 @@ namespace TowerDefense.Game
             Fill(new Rect(r.x, r.y, r.width * Mathf.Clamp01(t), r.height), c);
         }
 
-        public static GUIStyle Text(int size, TextAnchor anchor = TextAnchor.MiddleLeft)
+        // 스타일은 (크기, 정렬, 줄바꿈)마다 한 번만 만든다 — OnGUI는 매 프레임 여러 번 불려 매번 만들면 쓰레기가 쌓인다.
+        // 돌려받은 스타일을 고치면 같은 키를 쓰는 곳이 모두 바뀌므로 고치지 말 것
+        private static readonly Dictionary<(int, TextAnchor, bool), GUIStyle> _styles = new Dictionary<(int, TextAnchor, bool), GUIStyle>();
+
+        public static GUIStyle Text(int size, TextAnchor anchor = TextAnchor.MiddleLeft, bool wrap = false)
         {
-            var s = new GUIStyle(GUI.skin.label) { fontSize = size, alignment = anchor, richText = true, wordWrap = false };
+            if (_styles.TryGetValue((size, anchor, wrap), out var s)) return s;
+            s = new GUIStyle(GUI.skin.label) { fontSize = size, alignment = anchor, richText = true, wordWrap = wrap };
             s.normal.textColor = Color.white;
-            return s;
+            return _styles[(size, anchor, wrap)] = s;
         }
 
         public static string Hex(Color c) => "#" + ColorUtility.ToHtmlStringRGB(c);

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace TowerDefense.Core
 {
-    public enum PlaceResult { Ok, NoGold, NotGround, Tree, TooClose }
+    public enum PlaceResult { Ok, NoGold, NotGround, Tree, TooClose, TooMany }
 
     /// <summary>원 하나 (월드 XZ 평면, m)</summary>
     public readonly struct Circle
@@ -12,9 +12,12 @@ namespace TowerDefense.Core
         public Circle(float x, float z, float r) { X = x; Z = z; R = r; }
     }
 
-    /// <summary>포탑 설치 판정 (docs/TOWER_PLACEMENT.md). 순서: 골드 → 녹색 지대 → 나무 → 포탑 구역.</summary>
+    /// <summary>포탑 설치 판정 (docs/TOWER_PLACEMENT.md). 순서: 개수 → 골드 → 녹색 지대 → 나무 → 포탑 구역.</summary>
     public static class PlacementRules
     {
+        /// <summary>한 스테이지에 세울 수 있는 포탑 수. 나머지는 영웅이 메운다 (docs/TOWER_PLACEMENT.md 규칙 11)</summary>
+        public const int MaxTowers = 10;
+
         /// <summary>바닥 둘레 샘플 수. 타일(1.5m)보다 바닥이 훨씬 작아 이 정도로 충분하다.</summary>
         public const int RimSamples = 12;
         private const float Eps = 1e-4f;
@@ -26,6 +29,9 @@ namespace TowerDefense.Core
         public static PlaceResult Check(float x, float z, float footprint, float zoneRadius, int gold, int cost,
             Func<float, float, bool> isGround, IEnumerable<Circle> trees, IEnumerable<Circle> towers)
         {
+            int count = 0;
+            foreach (var _ in towers) count++;
+            if (count >= MaxTowers) return PlaceResult.TooMany;
             if (gold < cost) return PlaceResult.NoGold;
 
             if (!isGround(x, z)) return PlaceResult.NotGround;
