@@ -9,28 +9,26 @@
 
 ## 처음 한 번: Unity 라이선스 시크릿 등록
 
-GitHub 저장소 **Settings → Secrets and variables → Actions → New repository secret** 에서 아래를 추가합니다. 시크릿이 없으면 워크플로가 라이선스 활성화 단계에서 실패합니다.
+GitHub 저장소 **Settings → Secrets and variables → Actions → New repository secret** 에서 아래를 추가합니다. 시크릿이 없으면 워크플로가 라이선스 활성화 단계에서 `License activation strategy could not be determined` 로 실패합니다.
 
 ### Unity Personal 라이선스 (무료)
 
 | 시크릿 | 값 |
 |---|---|
-| `UNITY_LICENSE` | `.ulf` 라이선스 파일의 **전체 내용** |
 | `UNITY_EMAIL` | Unity 계정 이메일 |
 | `UNITY_PASSWORD` | Unity 계정 비밀번호 |
 
-`.ulf` 파일은 Unity Hub로 Personal 라이선스를 활성화한 PC에 있습니다.
-
-- Windows: `C:\ProgramData\Unity\Unity_lic.ulf`
-- macOS: `/Library/Application Support/Unity/Unity_lic.ulf`
-
-파일을 메모장으로 열어 전체 내용을 `UNITY_LICENSE` 에 붙여 넣습니다.
+이 둘만 있으면 됩니다. 계정에 2단계 인증(2FA)이 켜져 있으면 CI에서 로그인할 수 없으니, 이메일/비밀번호로만 로그인되는 계정을 쓰거나 GameCI 문서를 참고하세요.
 
 ### Unity Pro/Plus 라이선스
 
-`UNITY_LICENSE` 대신 `UNITY_SERIAL` (시리얼 키)을 추가하고, 워크플로의 `env:` 에 `UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}` 를 한 줄 넣습니다. `UNITY_EMAIL`, `UNITY_PASSWORD` 는 그대로 필요합니다.
+위 두 개에 더해 `UNITY_SERIAL` (시리얼 키)을 추가합니다.
 
-자세한 내용: <https://game.ci/docs/github/activation>
+### Enterprise/Industry (.ulf 파일)
+
+`UNITY_LICENSE` 에 `.ulf` 파일의 전체 내용을 넣습니다. Personal/Pro라면 필요 없습니다.
+
+워크플로는 네 시크릿을 모두 넘기고, 비어 있는 것은 무시됩니다. 자세한 내용: <https://game.ci/docs/github/activation>
 
 ## 참고
 
