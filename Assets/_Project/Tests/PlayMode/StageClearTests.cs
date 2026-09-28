@@ -12,6 +12,7 @@ namespace TowerDefense.Tests
     /// <summary>
     /// 스테이지를 실제로 돌려 클리어되는지 본다. 새 저장 슬롯(스킬 없음, 보통 난이도) + 포탑만 쓰는 자동 플레이어, 영웅은 쓰지 않는다.
     /// 자동 플레이어: 골드가 되면 길을 가장 많이 덮는 자리에 포탑을 세우고(최대 10개), 다 세우면 기본 포탑을 업그레이드한다.
+    /// 농장 구역(1~4)은 쉬워야 한다: 영웅 없이도 크립이 하나도 통과하지 않아야 통과.
     /// ponytail: 업그레이드는 영웅이 가서 기다리는 시간 없이 바로 올린다. 영웅 없이도 깨지면 실제 플레이는 더 여유 있다.
     /// </summary>
     public sealed class StageClearTests
@@ -75,6 +76,7 @@ namespace TowerDefense.Tests
             Debug.Log($"[StageClear] 스테이지 {stage}: {(s.Won ? "클리어" : "실패")} 웨이브 {s.Wave.Round}/{s.Wave.WaveCount} 시간 {s.GameTimeMs / 1000f:0}s " +
                       $"처치 {s.Kills} 통과 {s.Leaked} 남은 데스 {s.Death} 별 {s.Stars} 남은 골드 {s.Gold} 쓴 골드 {spent} 포탑 [{kinds}] 오류 로그 {_errors}");
             Assert.IsTrue(s.Won, $"스테이지 {stage} 실패: {s.LastMessage} (웨이브 {s.Wave.Round}, 통과 {s.Leaked})");
+            Assert.AreEqual(0, s.Leaked, $"스테이지 {stage}: 농장 구역인데 크립 {s.Leaked}마리가 통과했다");
         }
 
         private static void Think(EnemySpawner s, Dictionary<TowerKind, List<Vector3>> spots)

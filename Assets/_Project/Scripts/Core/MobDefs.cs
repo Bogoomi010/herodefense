@@ -55,10 +55,10 @@ namespace TowerDefense.Core
 
         public static float BaseHp(int round)
         {
-            // 스테이지 15웨이브 기준 1.18 (2026-09-28 1.21 → 1.18: 15웨이브가 1웨이브의 14배로 튀어 포탑만으로는 2·4스테이지를 못 깼다)
+            // 스테이지 15웨이브 기준 1.16 (2026-09-28 1.21 → 1.16: 15웨이브가 1웨이브의 14배로 튀어 포탑만으로는 2·4스테이지를 못 깼다. 농장 구역은 쉬워야 한다)
             // ♾ 무한 모드 (41R+): 지수 완화 → 1.13
             if (round > 40) return RoundJs(BaseHp(40) * Math.Pow(1.13, round - 40));
-            return RoundJs(18 * Math.Pow(1.18, round - 1));
+            return RoundJs(18 * Math.Pow(1.16, round - 1));
         }
 
         public static float BaseSpeed(int round) => 60f + round * 1.5f;
