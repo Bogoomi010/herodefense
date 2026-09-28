@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NUnit.Framework;
 using TowerDefense.Core;
 
@@ -122,6 +123,51 @@ namespace TowerDefense.Tests
             Assert.AreEqual(3, w.ToSpawn, "보스가 먼저 나옴");
             Run(w, 60_000f);
             Assert.AreEqual(0, w.ToSpawn);
+        }
+
+        [Test]
+        public void StageHpMul_GrowsExponentially()
+        {
+            Assert.AreEqual(1f, StageRules.StageHpMul(1), 1e-4f);
+            Assert.AreEqual(1.15f, StageRules.StageHpMul(2), 1e-4f);
+            Assert.AreEqual(1.15f * 1.15f * 1.15f, StageRules.StageHpMul(4), 1e-4f);
+        }
+
+        [Test]
+        public void CreepPool_RotatesByWave_AndFallsBack()
+        {
+            var pool = new List<string> { "pigeon", "trash", "rock" };
+            Assert.AreEqual("pigeon", MobDefs.MobStatsFor(1, pool).Id);
+            Assert.AreEqual("trash", MobDefs.MobStatsFor(2, pool).Id);
+            Assert.AreEqual("rock", MobDefs.MobStatsFor(3, pool).Id);
+            Assert.AreEqual("pigeon", MobDefs.MobStatsFor(4, pool).Id);
+            // 한 웨이브 안에서 섞여 나온다: 웨이브 1의 0, 1, 2, 3번째 크립
+            Assert.AreEqual("pigeon", MobDefs.MobStatsFor(1, pool, 0).Id);
+            Assert.AreEqual("trash", MobDefs.MobStatsFor(1, pool, 1).Id);
+            Assert.AreEqual("rock", MobDefs.MobStatsFor(1, pool, 2).Id);
+            Assert.AreEqual("pigeon", MobDefs.MobStatsFor(1, pool, 3).Id);
+            Assert.AreEqual("trash", MobDefs.MobStatsFor(2, pool, 0).Id, "웨이브마다 첫 종류가 바뀐다");
+            Assert.AreEqual(MobDefs.MobStatsFor(5).Id, MobDefs.MobStatsFor(5, new List<string>()).Id, "빈 풀은 원본 규칙");
+            Assert.AreEqual(MobDefs.MobStatsFor(5).Id, MobDefs.MobStatsFor(5, new List<string> { "nope" }).Id, "모르는 id도 원본 규칙");
+            Assert.IsTrue(MobDefs.MobStatsFor(7, new List<string> { "trash_big" }).Splits);
+            Assert.IsNotNull(MobDefs.Describe("pigeon_angry"));
+            Assert.IsNotNull(MobDefs.Describe("boss"));
+        }
+
+        [Test]
+        public void FarmCreeps_ModelsSplitAndBoss()
+        {
+            var farm = new List<string> { "sheep", "chicken", "cow", "pig" };
+            Assert.AreEqual("Sheep", MobDefs.MobStatsFor(1, farm).Model);
+            Assert.Greater(MobDefs.MobStatsFor(2, farm).Speed, MobDefs.MobStatsFor(2, new List<string> { "sheep" }).Speed, "닭이 양보다 빠름");
+            Assert.Greater(MobDefs.MobStatsFor(3, farm).Armor, MobDefs.MobStatsFor(3, new List<string> { "sheep" }).Armor, "소가 양보다 단단함");
+            var pig = new MobState(MobDefs.MobStatsFor(4, farm));
+            Assert.IsTrue(pig.Splits);
+            var piglet = MobDefs.SplitChildStats(pig);
+            Assert.AreEqual("piglet", piglet.Id);
+            Assert.AreEqual("Pig", piglet.Model);
+            Assert.AreEqual("Bull", MobDefs.BossStats(15, "bull").Model);
+            Assert.AreEqual("boss", MobDefs.BossStats(15).Id, "구역 보스가 없으면 기본 보스");
         }
 
         [Test]

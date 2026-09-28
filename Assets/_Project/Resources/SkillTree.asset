@@ -162,3 +162,23 @@ MonoBehaviour:
     y: -3
     links:
     - gold1
+  - id: impact1
+    title: "\uAC15\uB9BC \uD53C\uD574"
+    effect: 7
+    value: 25
+    keystone: 0
+    start: 0
+    x: -2
+    y: 1
+    links:
+    - desc1
+  - id: impact2
+    title: "\uAC15\uB9BC \uCDA9\uACA9"
+    effect: 7
+    value: 50
+    keystone: 1
+    start: 0
+    x: -3
+    y: 2
+    links:
+    - impact1

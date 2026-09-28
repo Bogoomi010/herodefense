@@ -28,6 +28,44 @@ namespace TowerDefense.Hero
 
         private void Awake() => _hero = GetComponent<Hero>();
 
+        // ---------- 머무는 범위 원 (docs/HERO_INTERACTION.md) ----------
+        // 작업(나무 베기·포탑 업그레이드) 중에는 대상의 상호작용 범위를 바닥에 원으로 보인다. 지형을 따라 휘고, 영웅이 경계에 가까우면 빨갛게.
+        private LineRenderer _stayRing;
+        private IHeroInteractable _ringFor;
+        private const float RingWarnAt = 0.8f; // 반지름의 80%를 넘으면 경고색
+        private static readonly Color RingOk = new Color(1f, 0.85f, 0.3f), RingWarn = new Color(1f, 0.3f, 0.25f);
+
+        private void LateUpdate()
+        {
+            bool show = _target != null && _target.IsAlive && _hero.State == HeroState.Active;
+            if (!show)
+            {
+                if (_stayRing != null) _stayRing.gameObject.SetActive(false);
+                _ringFor = null;
+                return;
+            }
+            if (_stayRing == null) _stayRing = Rings.Circle(null, RingOk, 0.2f);
+            if (_ringFor != _target) DrapeRing(_target.Position, _target.InteractRadius);
+            float edge = Mathf.Sqrt(FlatDist2(_target.Position)) / Mathf.Max(0.01f, _target.InteractRadius);
+            Rings.SetColor(_stayRing, edge > RingWarnAt ? RingWarn : RingOk);
+            _stayRing.gameObject.SetActive(true);
+        }
+
+        /// <summary>원 둘레 점을 지형 높이에 맞춘다 (대상이 움직이지 않으므로 작업을 시작할 때 한 번).</summary>
+        private void DrapeRing(Vector3 center, float radius)
+        {
+            _ringFor = _target;
+            _stayRing.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity); // 로컬 = 월드
+            int n = _stayRing.positionCount;
+            for (int i = 0; i < n; i++)
+            {
+                float a = i * Mathf.PI * 2f / n;
+                var p = new Vector3(center.x + Mathf.Cos(a) * radius, center.y, center.z + Mathf.Sin(a) * radius);
+                p.y = Session.GroundY(p) + 0.15f;
+                _stayRing.SetPosition(i, p);
+            }
+        }
+
         private EnemySpawner Session => _hero.session;
 
         private void Update()

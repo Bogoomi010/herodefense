@@ -80,7 +80,7 @@ namespace TowerDefense.Game
             Stage = n > 0 ? n : 1;
             Def = (StageList.Instance != null ? StageList.Instance.Get(Stage) : null) ?? new StageDef();
             MobDefs.Difficulty = Profile.difficulty; // 저장 슬롯을 만들 때 고정
-            MobDefs.StageHpMul = Def.hpMul;
+            MobDefs.StageHpMul = StageRules.StageHpMul(Stage);
             Bonuses = SkillTreeDef.LoadOrEmpty().Bonuses(Profile);
             Economy = new Economy(new Mods(), GameConfig.StartGold + Bonuses.StartGold);
         }
@@ -188,9 +188,19 @@ namespace TowerDefense.Game
             if (e != null) Destroy(e.gameObject);
         }
 
+        // 크립 모델: Resources/Creeps/<Model> 프리팹. 없으면 씬의 기본 모델(enemyPrefab)
+        private readonly Dictionary<string, GameObject> _models = new Dictionary<string, GameObject>();
+
+        private GameObject ModelFor(string model)
+        {
+            if (string.IsNullOrEmpty(model)) return enemyPrefab;
+            if (!_models.TryGetValue(model, out var go)) _models[model] = go = Resources.Load<GameObject>($"Creeps/{model}");
+            return go != null ? go : enemyPrefab;
+        }
+
         private EnemyView AddEnemy(MobState state)
         {
-            var view = EnemyView.Create(state, this, _enemyRoot, enemyPrefab);
+            var view = EnemyView.Create(state, this, _enemyRoot, ModelFor(state.Model));
             _enemies.Add(view);
             return view;
         }
@@ -216,16 +226,64 @@ namespace TowerDefense.Game
                     return null;
                 }
             }
-            var stats = boss ? MobDefs.BossStats(round) : MobDefs.MobStatsFor(round);
+            var stats = boss ? MobDefs.BossStats(round, Def.boss) : MobDefs.MobStatsFor(round, Def.creeps, _spawnInRound++);
             return AddEnemy(new MobState(stats)).State;
         }
 
         public int MobCount() => _enemies.Count;
 
+        private int _spawnInRound; // 이번 웨이브에서 나온 크립 수 — 섞어 내보낼 차례
+
         public void RoundStart(int round, bool boss)
         {
             Economy.OnRoundStart(); // 변이 라운드 배율 초기화 (변이 자체는 도파민 시스템 이식 때)
-            Message(boss ? $"라운드 {round} — 보스 {MobDefs.BossDefFor(round).Name} ({MobDefs.BossDefFor(round).Trait})" : $"라운드 {round} — {MobDefs.MobStatsFor(round).Name}");
+            _spawnInRound = 0;
+            // 이 웨이브에 섞여 나오는 종류 (풀 크기만큼 돌면 전부 나온다)
+            var names = new List<string>();
+            for (int i = 0; i < Mathf.Max(1, Def.creeps.Count); i++)
+            {
+                var c = MobDefs.MobStatsFor(round, Def.creeps, i);
+                if (!names.Contains(c.Name)) names.Add(c.Name);
+                Introduce(c.Id);
+            }
+            var bossDef = MobDefs.BossStats(round, Def.boss);
+            Message(boss ? $"라운드 {round} — 보스 {bossDef.Name}" : $"라운드 {round} — {string.Join("·", names)}");
+            if (boss) Introduce(MobDefs.BossStats(round, Def.boss).Id);
+        }
+
+        // ---------- 새 크립 소개 카드 (docs/INGAME_UI.md) ----------
+
+        private readonly List<string> _intros = new List<string>();
+        private float _introUntil;
+        private const float IntroSec = 5f;
+
+        /// <summary>이 저장 슬롯에서 처음 만나는 크립이면 소개 카드를 줄 세운다. 만난 기록은 정산 때 프로필과 함께 저장된다.</summary>
+        private void Introduce(string id)
+        {
+            if (string.IsNullOrEmpty(id) || Profile.seenCreeps.Contains(id) || MobDefs.Describe(id) == null) return;
+            Profile.seenCreeps.Add(id);
+            _intros.Add(id);
+            if (_intros.Count == 1) _introUntil = GameTimeMs + IntroSec * 1000f;
+        }
+
+        private void DrawIntro()
+        {
+            if (_intros.Count == 0) return;
+            if (GameTimeMs >= _introUntil)
+            {
+                _intros.RemoveAt(0);
+                if (_intros.Count == 0) return;
+                _introUntil = GameTimeMs + IntroSec * 1000f;
+            }
+            var (name, desc) = MobDefs.Describe(_intros[0]).Value;
+            var r = new Rect(Hud.Pad, Hud.TopLeft.yMax + 12, 340, 86);
+            Hud.Panel(r, 0.85f);
+            Hud.Frame(r, Hud.Gold);
+            GUI.Label(new Rect(r.x + 14, r.y + 6, r.width - 28, 22), $"<color={Hud.Hex(Hud.Gold)}>새 크립</color>", Hud.Text(14));
+            GUI.Label(new Rect(r.x + 14, r.y + 28, r.width - 28, 26), name, Hud.Text(19));
+            var d = Hud.Text(14);
+            d.wordWrap = true;
+            GUI.Label(new Rect(r.x + 14, r.y + 54, r.width - 28, 30), desc, d);
         }
 
         public void RoundClear(int round)
@@ -296,15 +354,18 @@ namespace TowerDefense.Game
             }
         }
 
-        /// <summary>폭발 넉백: center 반경 radius 안 크립이 바깥으로 날아간다. 중심에 가까울수록 세게(가장자리에서 절반).</summary>
-        public void Explode(Vector3 center, float radius, float force)
+        /// <summary>
+        /// 폭발 넉백: center 반경 radius 안 크립이 바깥으로 날아간다. 중심에 가까울수록 세게(가장자리에서 절반).
+        /// landStunMs &gt; 0이면 뒤집혀 떨어지고 착지 순간부터 스턴 (영웅 강림).
+        /// </summary>
+        public void Explode(Vector3 center, float radius, float force, float landStunMs = 0f)
         {
             foreach (var e in _enemies)
             {
                 var p = e.transform.position;
                 float d = Vector2.Distance(new Vector2(p.x, p.z), new Vector2(center.x, center.z));
                 if (d > radius) continue;
-                e.Knockback(center, force * (1f - 0.5f * d / radius));
+                e.Knockback(center, force * (1f - 0.5f * d / radius), landStunMs);
             }
         }
 
@@ -411,6 +472,7 @@ namespace TowerDefense.Game
             if (!showHud || Wave == null) return;
             var btn = new GUIStyle(GUI.skin.button) { fontSize = 15, richText = true };
             DrawTopBar(btn);
+            DrawIntro();
             if (Over) { DrawSettlement(Hud.Text(20), new GUIStyle(GUI.skin.button) { fontSize = 16 }); return; }
             if (!HeroInField) DrawTowerBar(btn);
         }

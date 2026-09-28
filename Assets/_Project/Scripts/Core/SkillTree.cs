@@ -13,6 +13,7 @@ namespace TowerDefense.Core
         ExpPct,          // 플레이어 경험치 획득량 %만큼 증가
         StartGold,       // 스테이지 시작 골드 +값
         GoldPct,         // 골드 획득량 %만큼 증가
+        DescentDamage,   // 영웅 강림 피해 +값 (강림 지역 크립 전부, docs/HERO.md). 에셋이 정수로 저장하므로 새 값은 끝에만 붙인다
     }
 
     /// <summary>스킬트리 노드 하나. 개발자가 SkillTreeDef 에셋에서 편집한다.</summary>
@@ -107,7 +108,7 @@ namespace TowerDefense.Core
     /// <summary>찍은 플레이어 스킬의 합. 스테이지 시작 시 한 번 계산해 세션이 들고 있는다.</summary>
     public sealed class PlayerBonuses
     {
-        public float ZoneShrink, UpgradeTimeCut, DescentCdCut, ExpBonus, GoldBonus;
+        public float ZoneShrink, UpgradeTimeCut, DescentCdCut, ExpBonus, GoldBonus, DescentDamage;
         public int StartGold;
 
         /// <summary>포탑 구역 반지름 배율. 하한(바닥 반지름)은 쓰는 쪽에서 건다.</summary>
@@ -128,6 +129,7 @@ namespace TowerDefense.Core
                 case SkillEffect.ExpPct: ExpBonus += v; break;
                 case SkillEffect.StartGold: StartGold += (int)Math.Round(v); break;
                 case SkillEffect.GoldPct: GoldBonus += v; break;
+                case SkillEffect.DescentDamage: DescentDamage += v; break;
             }
         }
     }

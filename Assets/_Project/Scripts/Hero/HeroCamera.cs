@@ -27,9 +27,15 @@ namespace TowerDefense.Hero
         [Header("전환")]
         public float smoothTime = 0.35f;
 
+        [Header("강림 착지 흔들림")]
+        public float shakeAmp = 0.6f;
+        public float shakeSec = 0.35f;
+
         public float Yaw => _yaw;
 
         Vector3 _velocity;
+        Vector3 _pos;       // 흔들림을 뺀 카메라 위치 (보간은 이 값으로)
+        float _shakeUntil;
         float _yaw;
         float _pitch;
         bool _subscribed;
@@ -83,6 +89,7 @@ namespace TowerDefense.Hero
         {
             if (state == HeroState.Active)
             {
+                _shakeUntil = Time.time + shakeSec; // 운석 착지
                 _yaw = hero.transform.eulerAngles.y;
                 _pitch = initialPitch;
                 Cursor.lockState = CursorLockMode.Locked;
@@ -103,6 +110,7 @@ namespace TowerDefense.Hero
             }
 
             transform.SetPositionAndRotation(perchView.position, perchView.rotation);
+            _pos = perchView.position;
             _velocity = Vector3.zero;
         }
 
@@ -136,13 +144,25 @@ namespace TowerDefense.Hero
 
                 targetPosition = ClampAboveGround(targetPosition);
             }
+            else if (hero.State == HeroState.Descending)
+            {
+                // 운석 강림: 절벽 자리에서 영웅을 눈으로 좇는다 (솟구쳤다 내리꽂히는 모습이 화면 밖으로 나가지 않게)
+                targetPosition = perchView.position;
+                Vector3 toHero = hero.transform.position - transform.position;
+                if (toHero.sqrMagnitude > 0.0001f)
+                    transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(toHero), 1f - Mathf.Exp(-12f * Time.deltaTime));
+                targetRotation = transform.rotation;
+            }
             else
             {
                 targetPosition = perchView.position;
                 targetRotation = perchView.rotation;
             }
 
-            transform.position = Vector3.SmoothDamp(transform.position, targetPosition, ref _velocity, smoothTime);
+            if (_pos == Vector3.zero) _pos = transform.position;
+            _pos = Vector3.SmoothDamp(_pos, targetPosition, ref _velocity, smoothTime);
+            float k = Mathf.Clamp01((_shakeUntil - Time.time) / Mathf.Max(0.0001f, shakeSec));
+            transform.position = _pos + Random.insideUnitSphere * (shakeAmp * k * k);
 
             float t = 1f - Mathf.Exp(-Time.deltaTime / Mathf.Max(smoothTime, 0.0001f));
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, t);
