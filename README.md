@@ -33,6 +33,10 @@ Assets/_Project/
 unity open D:\Workspace\TowerDefense
 ```
 
+## CI
+
+EditMode 테스트가 GitHub Actions(GameCI)에서 push와 PR마다 돌아갑니다. Unity 라이선스 시크릿 설정은 [docs/CI.md](docs/CI.md)를 보세요.
+
 ## Git 규칙
 
 - `Library/`, `Temp/`, `Logs/`, `UserSettings/`, IDE 파일은 커밋하지 않습니다 (`.gitignore`).
