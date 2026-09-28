@@ -3,7 +3,7 @@
 `.github/workflows/editmode-tests.yml` 이 [GameCI](https://game.ci/) `unity-test-runner` 로 `Assets/_Project/Tests/EditMode/` 의 EditMode 테스트를 돌립니다.
 
 - **언제**: `develop`, `main` 에 push 할 때 (기능 브랜치는 develop으로 PR을 열면 실행), 모든 PR, Actions 탭에서 수동 실행(`workflow_dispatch`).
-- **Unity 버전**: `ProjectSettings/ProjectVersion.txt` 에서 자동으로 읽습니다 (현재 6000.3.24f1, `unityci/editor:ubuntu-6000.3.24f1-base-3` 이미지).
+- **Unity 버전**: `ProjectSettings/ProjectVersion.txt` 에서 자동으로 읽습니다 (현재 6000.3.24f1, GameCI `unityci/editor` Linux 이미지).
 - **결과**: PR/커밋에 `EditMode test results` 체크로 표시되고, 결과 XML은 `editmode-test-results` 아티팩트로 올라갑니다.
 - `Library/` 는 캐시되어 두 번째 실행부터 빨라집니다.
 
